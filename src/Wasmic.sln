@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2005
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasmic.Core", "Wasmic.Core\Wasmic.Core.csproj", "{5361DE4D-B99A-4A89-8F1E-66BEF0491058}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasmic.Test", "Wasmic.Test\Wasmic.Test.csproj", "{849ABF04-926A-40DE-B82C-E6F8CC1EB601}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5361DE4D-B99A-4A89-8F1E-66BEF0491058}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5361DE4D-B99A-4A89-8F1E-66BEF0491058}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5361DE4D-B99A-4A89-8F1E-66BEF0491058}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5361DE4D-B99A-4A89-8F1E-66BEF0491058}.Release|Any CPU.Build.0 = Release|Any CPU
+		{849ABF04-926A-40DE-B82C-E6F8CC1EB601}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{849ABF04-926A-40DE-B82C-E6F8CC1EB601}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{849ABF04-926A-40DE-B82C-E6F8CC1EB601}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{849ABF04-926A-40DE-B82C-E6F8CC1EB601}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1F9E34F8-C9D1-43D0-9D71-58690663F7E6}
+	EndGlobalSection
+EndGlobal
