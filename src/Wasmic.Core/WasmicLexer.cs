@@ -23,6 +23,7 @@ namespace Wasmic.Core
         Func,
         Return,
         Var,
+        If,
 
         L_Paren,
         R_Paren,
@@ -50,6 +51,14 @@ namespace Wasmic.Core
     }
     internal class WasmicLexer : ILexer
     {
+        private static readonly Dictionary<string, TokenType> PredefinedIdentifiers = new Dictionary<string, TokenType>()
+        {
+            { "func", TokenType.Func },
+            { "return", TokenType.Return },
+            { "var", TokenType.Var },
+            { "if", TokenType.If },
+        };
+
         private static readonly Dictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
         {
             { '(', new Token(TokenType.L_Paren, "(") },
@@ -108,14 +117,9 @@ namespace Wasmic.Core
                 var startPos = _offest;
                 AdvanceOffsetWhile(c => c == '_' || char.IsLetterOrDigit(c));
                 var result = _code.Substring(startPos, _offest - startPos);
-                TokenType tokenType;
-                switch(result)
-                {
-                    case "func": tokenType = TokenType.Func; break;
-                    case "return": tokenType = TokenType.Return; break;
-                    case "var": tokenType = TokenType.Var; break;
-                    default: tokenType = TokenType.Identifier; break;
-                }
+                var tokenType = PredefinedIdentifiers.ContainsKey(result) 
+                    ? PredefinedIdentifiers[result] 
+                    : TokenType.Identifier;
                 _next = new Token(tokenType, result);
                 return;
             }
@@ -129,7 +133,8 @@ namespace Wasmic.Core
                 if(int.TryParse(result, out _))
                 {
                     tokenType = TokenType.Int32;
-                } else if(long.TryParse(result, out _))
+                }
+                else if(long.TryParse(result, out _))
                 {
                     tokenType = TokenType.Int64;
                 }

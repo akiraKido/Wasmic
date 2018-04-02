@@ -77,7 +77,7 @@ namespace Wasmic.Test
             var tree = new WasmicSyntaxTree().ParseText(code);
             var actual = WasmicCompiler.Compile(tree);
 
-            Assert.Equal("(module (func $hoge (param $a i32) (result i32) get_local $a))", actual);
+            Assert.Equal("(module (func $hoge (param $a i32) (result i32) get_local $a return))", actual);
         }
 
         [Fact]
@@ -93,7 +93,8 @@ namespace Wasmic.Test
                             "(func $add (param $lhs i32) (param $rhs i32) (result i32) " +
                                 "get_local $lhs " +
                                 "get_local $rhs " +
-                                "i32.add" +
+                                "i32.add " +
+                                "return" +
                             ")" +
                          ")", actual);
         }
@@ -108,7 +109,8 @@ namespace Wasmic.Test
 
             Assert.Equal("(module " +
                             "(func $getAnswer (result i32) " +
-                                "i32.const 42" +
+                                "i32.const 42 " +
+                                "return" +
                             ")" +
                          ")", actual);
         }
@@ -126,11 +128,13 @@ namespace Wasmic.Test
 
             Assert.Equal("(module " +
                             "(func $getAnswer (result i32) " +
-                                "i32.const 42) " +
+                                "i32.const 42 " +
+                                "return) " +
                             "(func (export \"getAnswerPlus1\") (result i32) " +
                                 "call $getAnswer " +
                                 "i32.const 1 " +
-                                "i32.add)" +
+                                "i32.add " +
+                                "return)" +
                          ")", actual);
         }
         [Fact]
@@ -147,7 +151,8 @@ namespace Wasmic.Test
                             "(func $hoge (result i32) (local $x i32) " +
                                 "i32.const 10 " +
                                 "set_local $x " +
-                                "get_local $x)" +
+                                "get_local $x " +
+                                "return)" +
                          ")", actual);
         }
         [Fact]
@@ -165,7 +170,36 @@ namespace Wasmic.Test
                             "(func $hoge (result i32) (local $x i32) " +
                                 "i32.const 10 " +
                                 "set_local $x " +
-                                "get_local $x)" +
+                                "get_local $x " +
+                                "return)" +
+                         ")", actual);
+        }
+        [Fact]
+        public void IfExpressionWithoutCallback()
+        {
+            var code = "func hoge(): i32 {" +
+                       "    var x = 10;" +
+                       "    if x == 10 {" +
+                       "        return 1;" +
+                       "    }" +
+                       "    return 0;" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                             "(func $hoge (result i32) (local $x i32) " +
+                                 "i32.const 10 " +
+                                 "set_local $x " +
+                                 "get_local $x " +
+                                 "i32.const 10 " +
+                                 "i32.eq " +
+                                 "if " +
+                                    "i32.const 1 " +
+                                    "return " +
+                                 "end " +
+                                 "i32.const 0 " +
+                                 "return)" +
                          ")", actual);
         }
     }

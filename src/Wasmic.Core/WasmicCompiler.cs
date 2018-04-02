@@ -42,10 +42,12 @@ namespace Wasmic.Core
                     return GenerateWat(literal);
                 case FunctionCall functionCall:
                     return GenerateWat(functionCall);
+                case IfExpression ifExpression:
+                    return GenerateWat(ifExpression);
             }
             throw new NotImplementedException();
         }
-
+        
         private static string GenerateWat(Module module)
         {
             var childWats = new List<string>();
@@ -103,7 +105,9 @@ namespace Wasmic.Core
 
         private static string GenerateWat(ReturnStatement returnStatement)
         {
-            return Compile(returnStatement.Expression);
+            var result = Compile(returnStatement.Expression);
+            result += " return";
+            return result;
         }
 
         private static string GenerateWat(GetLocalVariable getLocalVariable)
@@ -152,6 +156,37 @@ namespace Wasmic.Core
         private static string GenerateWat(FunctionCall functionCall)
         {
             return $"call ${functionCall.Name}";
+        }
+
+        private static string GenerateWat(IfExpression ifExpression)
+        {
+            var result = string.Empty;
+            result += GenerateWat(ifExpression.Comparison);
+            result += " if";
+            result += ifExpression.IfBlock.Select(Compile).JoinWithPriorSpaceOrEmpty();
+            if(ifExpression.ElseBlock != null)
+            {
+                result += " else";
+                result += ifExpression.ElseBlock.Select(Compile).JoinWithPriorSpaceOrEmpty();
+            }
+            result += " end";
+            return result;
+        }
+
+        private static string GenerateWat(Comparison comparison)
+        {
+            var result = string.Empty;
+            result += Compile(comparison.Lhs);
+            result += " " + Compile(comparison.Rhs);
+            switch(comparison.ComparisonOperator)
+            {
+                case ComparisonOperator.Equals:
+                    result += " i32.eq";
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+            return result;
         }
 
     }

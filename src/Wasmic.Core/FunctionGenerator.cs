@@ -154,6 +154,8 @@ namespace Wasmic.Core
                     return GetReturnStatement();
                 case TokenType.Var:
                     return GetLocalVariableDeclaration();
+                case TokenType.If:
+                    return GetIf();
                 case TokenType.Identifier:
                     var name = _lexer.Next.Value;
                     _lexer.Advance(); // eat name
@@ -198,6 +200,7 @@ namespace Wasmic.Core
             {
                 case TokenType.Equal:
                     _lexer.Advance(); // eat =
+                    _localVariableMap[name] = null;
                     tree = GetSetLocalVariable(name);
                     if(type != null && tree.Type != type)
                     {
@@ -218,6 +221,35 @@ namespace Wasmic.Core
             return tree;
         }
 
+        private IWasmicSyntaxTreeExpression GetIf()
+        {
+            _lexer.AssertNext(TokenType.If);
+            _lexer.Advance(); // eat if
+
+            var comparison = GetComparison();
+            var ifBlock = GetBlock();
+            IEnumerable<IWasmicSyntaxTree> elseBlock = null;
+            if(_lexer.Next.TokenType == TokenType.L_Bracket)
+            {
+                elseBlock = GetBlock();
+            }
+            return new IfExpression(null, comparison, ifBlock, elseBlock);
+        }
+
+        private Comparison GetComparison()
+        {
+            var lhs = GetExpression();
+            if(_lexer.Next.TokenType == TokenType.Equal)
+            {
+                _lexer.Advance(); // eat =
+                _lexer.AssertNext(TokenType.Equal);
+                _lexer.Advance(); // eat =
+                var rhs = GetExpression();
+                return new Comparison(lhs, rhs, ComparisonOperator.Equals);
+            }
+            throw new NotImplementedException();
+        }
+
         private SetLocalVariable GetSetLocalVariable(string name)
         {
             if(_localVariableMap.ContainsKey(name) == false)
@@ -227,7 +259,7 @@ namespace Wasmic.Core
 
             var type = _localVariableMap[name];
             var expression = GetExpression();
-            if(type != expression.Type)
+            if(type != null && type != expression.Type)
             {
                 throw new WasmicCompilerException($"types do not match: {name} = {type}, expression = {expression.Type}");
             }

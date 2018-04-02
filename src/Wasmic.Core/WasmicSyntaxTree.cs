@@ -206,5 +206,48 @@ namespace Wasmic.Core
         public string Name { get; }
         public string Type { get; }
     }
+
+    public class IfExpression : IWasmicSyntaxTreeExpression
+    {
+        public IfExpression(
+            string type, 
+            Comparison comparison, 
+            IEnumerable<IWasmicSyntaxTree> ifBlock, 
+            IEnumerable<IWasmicSyntaxTree> elseBlock)
+        {
+            Type = type;
+            Comparison = comparison;
+            IfBlock = ifBlock;
+            ElseBlock = elseBlock;
+        }
+
+        public Comparison Comparison { get; }
+        public IEnumerable<IWasmicSyntaxTree> IfBlock { get; }
+        public IEnumerable<IWasmicSyntaxTree> ElseBlock { get; }
+        public string Type { get; }
+    }
+
+    public enum ComparisonOperator
+    {
+        Equals
+    }
+
+    public class Comparison : IWasmicSyntaxTreeExpression
+    {
+        public Comparison(
+            IWasmicSyntaxTreeExpression lhs, 
+            IWasmicSyntaxTreeExpression rhs, 
+            ComparisonOperator comparisonOperator)
+        {
+            Lhs = lhs;
+            Rhs = rhs;
+            ComparisonOperator = comparisonOperator;
+        }
+
+        public IWasmicSyntaxTreeExpression Lhs { get; }
+        public IWasmicSyntaxTreeExpression Rhs { get; }
+        public ComparisonOperator ComparisonOperator { get; }
+        public string Type => "i32";
+    }
     
 }
