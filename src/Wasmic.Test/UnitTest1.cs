@@ -133,5 +133,40 @@ namespace Wasmic.Test
                                 "i32.add)" +
                          ")", actual);
         }
+        [Fact]
+        public void UseLocalVariable()
+        {
+            var code = "func hoge(): i32 {" +
+                       "    var x = 10;" +
+                       "    return x;" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                            "(func $hoge (result i32) (local $x i32) " +
+                                "i32.const 10 " +
+                                "set_local $x " +
+                                "get_local $x)" +
+                         ")", actual);
+        }
+        [Fact]
+        public void UseLocalVariableSplit()
+        {
+            var code = "func hoge(): i32 {" +
+                       "    var x: i32;" +
+                       "    x = 10;" +
+                       "    return x;" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                            "(func $hoge (result i32) (local $x i32) " +
+                                "i32.const 10 " +
+                                "set_local $x " +
+                                "get_local $x)" +
+                         ")", actual);
+        }
     }
 }

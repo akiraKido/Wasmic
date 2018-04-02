@@ -9,6 +9,12 @@ namespace Wasmic.Core
         internal WasmicCompilerException(string s) : base(s) { }
     }
 
+    internal static class StringCollectionExtensions
+    {
+        internal static string JoinWithPriorSpaceOrEmpty(this IEnumerable<string> enumerable) 
+            => enumerable.Any() ? " " + string.Join(" ", enumerable) : string.Empty;
+    }
+
 
     public class WasmicCompiler
     {
@@ -28,6 +34,8 @@ namespace Wasmic.Core
                     return GenerateWat(returnStatement);
                 case GetLocalVariable getLocalVariable:
                     return GenerateWat(getLocalVariable);
+                case SetLocalVariable setLocalVariable:
+                    return GenerateWat(setLocalVariable);
                 case BinopExpresison binopExpresison:
                     return GenerateWat(binopExpresison);
                 case Literal literal:
@@ -60,15 +68,27 @@ namespace Wasmic.Core
 
         private static string GenerateWat(Function function)
         {
-            var name = function.IsPublic 
-                ? $"(export \"{function.Name}\")" 
-                : $"${function.Name}";
-            var parameterWats = function.Parameters.Select(GenerateWat);
-            var parameterWatString = parameterWats.Any() ? " " + string.Join(" ", parameterWats) : string.Empty;
-            var returnType = function.ReturnType != null ? " " + GenerateWat(function.ReturnType) : string.Empty;
-            var body = function.Body.Select(Compile);
-            var bodyString = body.Any() ? " " + string.Join(" ", body) : string.Empty;
-            return $"(func {name}{parameterWatString}{returnType}{bodyString})";
+            var functionDef = function.FunctionDefinition;
+
+            var name = functionDef.IsPublic 
+                ? $"(export \"{functionDef.Name}\")" 
+                : $"${functionDef.Name}";
+
+            var parameterWats = functionDef.Parameters
+                .Select(GenerateWat)
+                .JoinWithPriorSpaceOrEmpty();
+
+            var returnType = functionDef.ReturnType != null ? " " + GenerateWat(functionDef.ReturnType) : string.Empty;
+
+            var body = function.Body
+                .Select(Compile)
+                .JoinWithPriorSpaceOrEmpty();
+
+            var localVariables = function.LocalVariables
+                .Select(kv => $"(local ${kv.Key} {kv.Value})")
+                .JoinWithPriorSpaceOrEmpty();
+
+            return $"(func {name}{parameterWats}{returnType}{localVariables}{body})";
         }
 
         private static string GenerateWat(Parameter parameter)
@@ -90,6 +110,15 @@ namespace Wasmic.Core
         {
             return $"get_local ${getLocalVariable.Name}";
         }
+
+        private static string GenerateWat(SetLocalVariable setLocalVariable)
+        {
+            var result = Compile(setLocalVariable.Expression);
+            result += $" set_local ${setLocalVariable.Name}";
+            return result;
+        }
+
+
         private static string GenerateWat(BinopExpresison binopExpresison)
         {
             var operation = string.Empty;

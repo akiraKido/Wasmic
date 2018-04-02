@@ -22,6 +22,7 @@ namespace Wasmic.Core
 
         Func,
         Return,
+        Var,
 
         L_Paren,
         R_Paren,
@@ -33,7 +34,8 @@ namespace Wasmic.Core
         Plus,
         Minus,
         Star,
-        Slash
+        Slash,
+        Equal
     }
     internal struct Token
     {
@@ -61,6 +63,7 @@ namespace Wasmic.Core
             { '-', new Token(TokenType.Minus, "-") },
             { '*', new Token(TokenType.Star, "*") },
             { '/', new Token(TokenType.Slash, "/") },
+            { '=', new Token(TokenType.Equal, "=") },
         };
 
         private readonly string _code;
@@ -110,6 +113,7 @@ namespace Wasmic.Core
                 {
                     case "func": tokenType = TokenType.Func; break;
                     case "return": tokenType = TokenType.Return; break;
+                    case "var": tokenType = TokenType.Var; break;
                     default: tokenType = TokenType.Identifier; break;
                 }
                 _next = new Token(tokenType, result);
