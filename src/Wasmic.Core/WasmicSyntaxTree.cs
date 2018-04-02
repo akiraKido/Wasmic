@@ -51,8 +51,27 @@ namespace Wasmic.Core
         }
     }
 
+    public enum WasmicSyntaxTreeType
+    {
+        Module,
+        Function,
+        FunctionDefinition,
+        Parameter,
+        ReturnType,
+        ReturnStatement,
+        GetLocalVariable,
+        SetLocalVariable,
+        BinopExpresison,
+        Literal,
+        FunctionCall,
+        IfExpression,
+        Comparison
+    }
 
-    public interface IWasmicSyntaxTree { }
+    public interface IWasmicSyntaxTree
+    {
+        WasmicSyntaxTreeType WasmicSyntaxTreeType { get; }
+    }
 
     public interface IWasmicSyntaxTreeExpression : IWasmicSyntaxTree
     {
@@ -67,6 +86,7 @@ namespace Wasmic.Core
         }
 
         public IEnumerable<IWasmicSyntaxTree> Children { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Module;
     }
 
     public class Function : IWasmicSyntaxTree
@@ -84,6 +104,7 @@ namespace Wasmic.Core
         public FunctionDefinition FunctionDefinition { get; }
         public IEnumerable<IWasmicSyntaxTree> Body { get; }
         public IReadOnlyDictionary<string, string> LocalVariables { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Function;
     }
 
     public class FunctionDefinition : IWasmicSyntaxTree
@@ -100,6 +121,7 @@ namespace Wasmic.Core
         public string Name { get; }
         public IEnumerable<Parameter> Parameters { get; }
         public ReturnType ReturnType { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.FunctionDefinition;
     }
 
     public class Parameter : IWasmicSyntaxTree
@@ -112,6 +134,7 @@ namespace Wasmic.Core
 
         public string Name { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Parameter;
     }
 
     public class ReturnType : IWasmicSyntaxTree
@@ -122,6 +145,7 @@ namespace Wasmic.Core
         }
 
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.ReturnType;
     }
 
     public class ReturnStatement : IWasmicSyntaxTree
@@ -132,6 +156,7 @@ namespace Wasmic.Core
         }
 
         public IWasmicSyntaxTree Expression { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.ReturnStatement;
     }
 
     public class GetLocalVariable : IWasmicSyntaxTreeExpression
@@ -144,6 +169,7 @@ namespace Wasmic.Core
 
         public string Name { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.GetLocalVariable;
     }
 
     public class SetLocalVariable : IWasmicSyntaxTreeExpression
@@ -157,6 +183,7 @@ namespace Wasmic.Core
         public string Name { get; }
         public IWasmicSyntaxTreeExpression Expression { get; }
         public string Type => Expression.Type;
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.SetLocalVariable;
     }
 
     public enum Operation
@@ -181,6 +208,7 @@ namespace Wasmic.Core
         public IWasmicSyntaxTreeExpression Rhs { get; }
         public Operation Operation { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.BinopExpresison;
     }
 
     public class Literal : IWasmicSyntaxTreeExpression
@@ -193,6 +221,7 @@ namespace Wasmic.Core
 
         public string Value { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Literal;
     }
 
     public class FunctionCall : IWasmicSyntaxTreeExpression
@@ -205,6 +234,7 @@ namespace Wasmic.Core
 
         public string Name { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.FunctionCall;
     }
 
     public class IfExpression : IWasmicSyntaxTreeExpression
@@ -225,6 +255,7 @@ namespace Wasmic.Core
         public IEnumerable<IWasmicSyntaxTree> IfBlock { get; }
         public IEnumerable<IWasmicSyntaxTree> ElseBlock { get; }
         public string Type { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.IfExpression;
     }
 
     public enum ComparisonOperator
@@ -248,6 +279,7 @@ namespace Wasmic.Core
         public IWasmicSyntaxTreeExpression Rhs { get; }
         public ComparisonOperator ComparisonOperator { get; }
         public string Type => "i32";
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Comparison;
     }
     
 }

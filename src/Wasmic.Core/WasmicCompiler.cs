@@ -11,43 +11,52 @@ namespace Wasmic.Core
 
     internal static class StringCollectionExtensions
     {
-        internal static string JoinWithPriorSpaceOrEmpty(this IEnumerable<string> enumerable) 
+        internal static string JoinWithPriorSpaceOrEmpty(this IEnumerable<string> enumerable)
             => enumerable.Any() ? " " + string.Join(" ", enumerable) : string.Empty;
     }
 
+
+    internal static class WasmicCompilerCache<T>
+    {
+        internal static Func<T> Factory;
+    }
 
     public class WasmicCompiler
     {
         public static string Compile(IWasmicSyntaxTree tree)
         {
-            switch(tree)
+            switch(tree.WasmicSyntaxTreeType)
             {
-                case Module module:
-                    return GenerateWat(module);
-                case Function function:
-                    return GenerateWat(function);
-                case Parameter parameter:
-                    return GenerateWat(parameter);
-                case ReturnType returnType:
-                    return GenerateWat(returnType);
-                case ReturnStatement returnStatement:
-                    return GenerateWat(returnStatement);
-                case GetLocalVariable getLocalVariable:
-                    return GenerateWat(getLocalVariable);
-                case SetLocalVariable setLocalVariable:
-                    return GenerateWat(setLocalVariable);
-                case BinopExpresison binopExpresison:
-                    return GenerateWat(binopExpresison);
-                case Literal literal:
-                    return GenerateWat(literal);
-                case FunctionCall functionCall:
-                    return GenerateWat(functionCall);
-                case IfExpression ifExpression:
-                    return GenerateWat(ifExpression);
+                case WasmicSyntaxTreeType.Module:
+                    return GenerateWat((Module)tree);
+                case WasmicSyntaxTreeType.Function:
+                    return GenerateWat((Function)tree);
+                case WasmicSyntaxTreeType.FunctionDefinition:
+                    throw new WasmicCompilerException("internal error: 0001");
+                case WasmicSyntaxTreeType.Parameter:
+                    return GenerateWat((Parameter)tree);
+                case WasmicSyntaxTreeType.ReturnType:
+                    return GenerateWat((ReturnType)tree);
+                case WasmicSyntaxTreeType.ReturnStatement:
+                    return GenerateWat((ReturnStatement)tree);
+                case WasmicSyntaxTreeType.GetLocalVariable:
+                    return GenerateWat((GetLocalVariable)tree);
+                case WasmicSyntaxTreeType.SetLocalVariable:
+                    return GenerateWat((SetLocalVariable)tree);
+                case WasmicSyntaxTreeType.BinopExpresison:
+                    return GenerateWat((BinopExpresison)tree);
+                case WasmicSyntaxTreeType.Literal:
+                    return GenerateWat((Literal)tree);
+                case WasmicSyntaxTreeType.FunctionCall:
+                    return GenerateWat((FunctionCall)tree);
+                case WasmicSyntaxTreeType.IfExpression:
+                    return GenerateWat((IfExpression)tree);
+                case WasmicSyntaxTreeType.Comparison:
+                    return GenerateWat((Comparison)tree);
             }
             throw new NotImplementedException();
         }
-        
+
         private static string GenerateWat(Module module)
         {
             var childWats = new List<string>();
@@ -72,8 +81,8 @@ namespace Wasmic.Core
         {
             var functionDef = function.FunctionDefinition;
 
-            var name = functionDef.IsPublic 
-                ? $"(export \"{functionDef.Name}\")" 
+            var name = functionDef.IsPublic
+                ? $"(export \"{functionDef.Name}\")"
                 : $"${functionDef.Name}";
 
             var parameterWats = functionDef.Parameters
@@ -125,7 +134,7 @@ namespace Wasmic.Core
 
         private static string GenerateWat(BinopExpresison binopExpresison)
         {
-            var operation = string.Empty;
+            string operation;
             switch(binopExpresison.Operation)
             {
                 case Operation.Add:
