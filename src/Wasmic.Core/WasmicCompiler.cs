@@ -58,6 +58,10 @@ namespace Wasmic.Core
                     return GenerateWat((Data)tree);
                 case WasmicSyntaxTreeType.String:
                     return GenerateWat((WasmicString)tree);
+                case WasmicSyntaxTreeType.Loop:
+                    return GenerateWat((Loop)tree);
+                case WasmicSyntaxTreeType.Break:
+                    return GenerateWat((Break)tree);
             }
             throw new NotImplementedException();
         }
@@ -288,6 +292,19 @@ namespace Wasmic.Core
             var result = $"i32.const {str.Offset} ";
             result += $"i32.const {str.Length}";
             return result;
+        }
+
+        private static string GenerateWat(Loop loop)
+        {
+            var result = string.Empty;
+            var loopBlock = loop.Block.Select(Compile).JoinWithPriorSpaceOrEmpty();
+            result += $"block loop{loopBlock} br 0 end end";
+            return result;
+        }
+
+        private static string GenerateWat(Break brk)
+        {
+            return $"br {brk.EscapeCount}";
         }
 
     }

@@ -11,6 +11,57 @@ namespace Wasmic.Core
         bool Contains(string name);
     }
 
+    internal interface ILoopContext
+    {
+        void NewContext();
+        void EscapeContext();
+        void AddNest();
+        void EscapeNest();
+        int NestCount { get; }
+    }
+
+    internal class LoopContext : ILoopContext
+    {
+        private readonly Stack<LoopContextDetails> _contextStack = new Stack<LoopContextDetails>();
+        private LoopContextDetails _currentContext;
+
+        public void NewContext()
+        {
+            if(_currentContext != null)
+            {
+                _contextStack.Push(_currentContext);
+            }
+            _currentContext = new LoopContextDetails();
+        }
+
+        public void EscapeContext()
+        {
+            _currentContext = _contextStack.Count > 0
+                ? _contextStack.Pop()
+                : null;
+        }
+
+        public void AddNest() => _currentContext?.AddNest();
+        public void EscapeNest() => _currentContext?.EscapeNest();
+        public int NestCount => _currentContext?.NestCount ?? 0;
+
+        private class LoopContextDetails
+        {
+            internal int NestCount { get; private set; }
+
+            internal void AddNest()
+            {
+                NestCount++;
+            }
+
+            internal void EscapeNest()
+            {
+                NestCount--;
+                if(NestCount < 0) throw new IndexOutOfRangeException("nest count");
+            }
+        }
+    }
+
     internal class FunctionGenerator
     {
         private readonly ILexer _lexer;
@@ -22,8 +73,11 @@ namespace Wasmic.Core
         private Dictionary<string, string> _localVariableMap;
         private IEnumerable<Parameter> _parameters;
 
+        private readonly ILoopContext _loopContext = new LoopContext();
+
+
         public FunctionGenerator(
-            ILexer lexer, 
+            ILexer lexer,
             IModuleFunctionMap functionMap,
             IFunctionDefinitionGenerator functionDefinitionGenerator,
             IHeap heap)
@@ -58,6 +112,8 @@ namespace Wasmic.Core
 
         private IEnumerable<IWasmicSyntaxTree> GetBlock()
         {
+            _loopContext.AddNest();
+
             _lexer.AssertNext(TokenType.L_Bracket);
             _lexer.Advance();
 
@@ -78,6 +134,7 @@ namespace Wasmic.Core
             }
 
             _lexer.Advance();
+            _loopContext.EscapeNest();
             return expressions;
         }
 
@@ -89,9 +146,25 @@ namespace Wasmic.Core
                     return GetReturnStatement();
                 case TokenType.Var:
                     return GetLocalVariableDeclaration();
+                case TokenType.Loop:
+                    return GetLoop();
+                case TokenType.Break:
+                    var result = new Break(_loopContext.NestCount);
+                    _lexer.Advance(); // eat break
+                    return result;
             }
 
             return GetExpression();
+        }
+
+        private IWasmicSyntaxTree GetLoop()
+        {
+            _lexer.AssertNext(TokenType.Loop);
+            _lexer.Advance(); // eat loop
+            _loopContext.NewContext();
+            var block = GetBlock();
+            _loopContext.EscapeContext();
+            return new Loop(block);
         }
 
         private ReturnStatement GetReturnStatement()

@@ -43,6 +43,8 @@ namespace Wasmic.Core
 
         EqualComparer,
         String,
+        Loop,
+        Break,
     }
     internal struct Token
     {
@@ -65,6 +67,8 @@ namespace Wasmic.Core
             { "if", new Token(TokenType.If, "if") },
             { "else", new Token(TokenType.Else, "else") },
             { "extern", new Token(TokenType.Extern, "extern") },
+            { "loop", new Token(TokenType.Loop, "loop") },
+            { "break", new Token(TokenType.Break, "break") },
             { "==", new Token(TokenType.EqualComparer, "==") },
         };
 

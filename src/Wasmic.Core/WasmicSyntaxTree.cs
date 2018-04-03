@@ -115,7 +115,9 @@ namespace Wasmic.Core
         Import,
         String,
         Memory,
-        Data
+        Data,
+        Loop,
+        Break
     }
 
     public interface IWasmicSyntaxTree
@@ -383,4 +385,26 @@ namespace Wasmic.Core
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Data;
     }
 
+    public class Loop : IWasmicSyntaxTree
+    {
+        public Loop(IEnumerable<IWasmicSyntaxTree> block)
+        {
+            Block = block;
+        }
+
+        public IEnumerable<IWasmicSyntaxTree> Block { get; }
+
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Loop;
+    }
+
+    public class Break : IWasmicSyntaxTree
+    {
+        public Break(int escapeCount)
+        {
+            EscapeCount = escapeCount;
+        }
+
+        public int EscapeCount { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Break;
+    }
 }

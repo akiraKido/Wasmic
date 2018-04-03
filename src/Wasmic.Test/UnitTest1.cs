@@ -299,5 +299,43 @@ namespace Wasmic.Test
                                 "call $console.log)" +
                          ")", actual);
         }
+
+        [Fact]
+        public void Loop()
+        {
+            var code = "pub func hoge(): i32 {" +
+                       "    var i = 0" +
+                       "    loop {" +
+                       "        i = i + 1" +
+                       "        if i == 5 { break; }" +
+                       "    }" +
+                       "    i" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                         "(func (export \"hoge\") (result i32) (local $i i32) " +
+                            "i32.const 0 " +
+                            "set_local $i " +
+                            "block " +
+                                "loop " +
+                                    "get_local $i " +
+                                    "i32.const 1 " +
+                                    "i32.add " +
+                                    "set_local $i " +
+                                    "get_local $i " +
+                                    "i32.const 5 " +
+                                    "i32.eq " +
+                                    "if " +
+                                        "br 2 " +
+                                    "end " +
+                                    "br 0 " +
+                                "end " +
+                            "end " +
+                            "get_local $i)" +
+                        ")", actual);
+
+        }
     }
 }
