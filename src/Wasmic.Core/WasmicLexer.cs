@@ -36,7 +36,10 @@ namespace Wasmic.Core
         Minus,
         Star,
         Slash,
-        Equal
+        Equal,
+        Else,
+
+        EqualComparer
     }
     internal struct Token
     {
@@ -51,12 +54,14 @@ namespace Wasmic.Core
     }
     internal class WasmicLexer : ILexer
     {
-        private static readonly Dictionary<string, TokenType> PredefinedIdentifiers = new Dictionary<string, TokenType>()
+        private static readonly Dictionary<string, Token> PredefinedIdentifiers = new Dictionary<string, Token>()
         {
-            { "func", TokenType.Func },
-            { "return", TokenType.Return },
-            { "var", TokenType.Var },
-            { "if", TokenType.If },
+            { "func", new Token(TokenType.Func, "func") },
+            { "return", new Token(TokenType.Return, "return") },
+            { "var", new Token(TokenType.Var, "var") },
+            { "if", new Token(TokenType.If, "if") },
+            { "else", new Token(TokenType.Else, "else") },
+            { "==", new Token(TokenType.EqualComparer, "==") },
         };
 
         private static readonly Dictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
@@ -105,6 +110,21 @@ namespace Wasmic.Core
 
             var current = _code[_offest];
 
+            if(current == '=')
+            {
+                if(_offest + 1 < _code.Length && _code[_offest + 1] == '=')
+                {
+                    _next = PredefinedIdentifiers["=="];
+                    _offest += 2;
+                }
+                else
+                {
+                    _next = SingleCharTokens['='];
+                    _offest++;
+                }
+                return;
+            }
+
             if(SingleCharTokens.ContainsKey(current))
             {
                 _next = SingleCharTokens[current];
@@ -117,10 +137,9 @@ namespace Wasmic.Core
                 var startPos = _offest;
                 AdvanceOffsetWhile(c => c == '_' || char.IsLetterOrDigit(c));
                 var result = _code.Substring(startPos, _offest - startPos);
-                var tokenType = PredefinedIdentifiers.ContainsKey(result) 
-                    ? PredefinedIdentifiers[result] 
-                    : TokenType.Identifier;
-                _next = new Token(tokenType, result);
+                _next = PredefinedIdentifiers.ContainsKey(result)
+                    ? PredefinedIdentifiers[result]
+                    : new Token(TokenType.Identifier, result);
                 return;
             }
 

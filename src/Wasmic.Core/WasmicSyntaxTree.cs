@@ -150,12 +150,12 @@ namespace Wasmic.Core
 
     public class ReturnStatement : IWasmicSyntaxTree
     {
-        public ReturnStatement(IWasmicSyntaxTree expression)
+        public ReturnStatement(IWasmicSyntaxTreeExpression expression)
         {
             Expression = expression;
         }
 
-        public IWasmicSyntaxTree Expression { get; }
+        public IWasmicSyntaxTreeExpression Expression { get; }
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.ReturnStatement;
     }
 

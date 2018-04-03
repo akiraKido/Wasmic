@@ -175,7 +175,7 @@ namespace Wasmic.Test
                          ")", actual);
         }
         [Fact]
-        public void IfExpressionWithoutCallback()
+        public void IfExpressionWithoutResult()
         {
             var code = "func hoge(): i32 {" +
                        "    var x = 10;" +
@@ -202,5 +202,38 @@ namespace Wasmic.Test
                                  "return)" +
                          ")", actual);
         }
+        [Fact]
+        public void IfExpressionWithResult()
+        {
+            var code = "func hoge(): i32 {" +
+                       "    var x = 10;" +
+                       "    var y = if x == 10 {" +
+                       "        1;" +
+                       "    } else {" +
+                       "        0;" +
+                       "    }" +
+                       "    y;" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                             "(func $hoge (result i32) (local $x i32) (local $y i32) " +
+                                 "i32.const 10 " +
+                                 "set_local $x " +
+                                 "get_local $x " +
+                                 "i32.const 10 " +
+                                 "i32.eq " +
+                                 "if (result i32) " +
+                                     "i32.const 1 " +
+                                 "else " +
+                                     "i32.const 0 " +
+                                 "end " +
+                                 "set_local $y " +
+                                 "get_local $y)" +
+                         ")", actual);
+        }
+
+
     }
 }

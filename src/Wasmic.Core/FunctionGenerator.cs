@@ -105,7 +105,7 @@ namespace Wasmic.Core
                 _lexer.AssertNext(TokenType.Identifier);
                 var type = _lexer.Next.Value;
                 _lexer.Advance(); // eat type
-                
+
                 parameters.Add(new Parameter(varName, type));
             }
             _lexer.Advance(); // eat )
@@ -154,23 +154,17 @@ namespace Wasmic.Core
                     return GetReturnStatement();
                 case TokenType.Var:
                     return GetLocalVariableDeclaration();
-                case TokenType.If:
-                    return GetIf();
-                case TokenType.Identifier:
-                    var name = _lexer.Next.Value;
-                    _lexer.Advance(); // eat name
-                    _lexer.AssertNext(TokenType.Equal);
-                    _lexer.Advance(); // eat =
-                    return GetSetLocalVariable(name);
             }
 
-            throw new NotImplementedException();
+            return GetExpression();
         }
 
         private ReturnStatement GetReturnStatement()
         {
-            _lexer.AssertNext(TokenType.Return);
-            _lexer.Advance(); // eat "return"
+            if(_lexer.Next.TokenType == TokenType.Return)
+            {
+                _lexer.Advance(); // eat "return"
+            }
             var expression = GetExpression();
             return new ReturnStatement(expression);
         }
@@ -228,22 +222,36 @@ namespace Wasmic.Core
 
             var comparison = GetComparison();
             var ifBlock = GetBlock();
+            var ifBlockReturnType = ifBlock.Last() as IWasmicSyntaxTreeExpression;
+
             IEnumerable<IWasmicSyntaxTree> elseBlock = null;
-            if(_lexer.Next.TokenType == TokenType.L_Bracket)
+            IWasmicSyntaxTreeExpression elseBlockReturnType = null;
+            if(_lexer.Next.TokenType == TokenType.Else)
             {
+                _lexer.Advance(); // eat else
                 elseBlock = GetBlock();
+                elseBlockReturnType = elseBlock.Last() as IWasmicSyntaxTreeExpression;
             }
+
+            if(ifBlockReturnType != null)
+            {
+                if(ifBlockReturnType.Type != elseBlockReturnType?.Type)
+                {
+                    throw new WasmicCompilerException("if block and else block doesn't match");
+                }
+
+                return new IfExpression(ifBlockReturnType.Type, comparison, ifBlock, elseBlock);
+            }
+
             return new IfExpression(null, comparison, ifBlock, elseBlock);
         }
 
         private Comparison GetComparison()
         {
             var lhs = GetExpression();
-            if(_lexer.Next.TokenType == TokenType.Equal)
+            if(_lexer.Next.TokenType == TokenType.EqualComparer)
             {
-                _lexer.Advance(); // eat =
-                _lexer.AssertNext(TokenType.Equal);
-                _lexer.Advance(); // eat =
+                _lexer.Advance(); // eat ==
                 var rhs = GetExpression();
                 return new Comparison(lhs, rhs, ComparisonOperator.Equals);
             }
@@ -265,7 +273,7 @@ namespace Wasmic.Core
             }
             return new SetLocalVariable(name, expression);
         }
-        
+
         private IWasmicSyntaxTreeExpression GetExpression()
         {
             switch(_lexer.Next.TokenType)
@@ -274,14 +282,21 @@ namespace Wasmic.Core
                     var name = _lexer.Next.Value;
                     _lexer.Advance();
 
-                    var lhs = GetLocalVariableOrFunctionCall(name);
-                    if(_lexer.Next.TokenType == TokenType.Plus
-                       || _lexer.Next.TokenType == TokenType.Minus
-                       || _lexer.Next.TokenType == TokenType.Star
-                       || _lexer.Next.TokenType == TokenType.Slash)
+                    if(_lexer.Next.TokenType == TokenType.Equal)
                     {
-                        (Operation operation, IWasmicSyntaxTreeExpression rhs) = GetBinopExpression();
-                        return new BinopExpresison(lhs, rhs, operation);
+                        _lexer.Advance(); // eat =
+                        return GetSetLocalVariable(name);
+                    }
+
+                    var lhs = GetLocalVariableOrFunctionCall(name);
+                    switch(_lexer.Next.TokenType)
+                    {
+                        case TokenType.Plus:
+                        case TokenType.Minus:
+                        case TokenType.Star:
+                        case TokenType.Slash:
+                            (Operation operation, IWasmicSyntaxTreeExpression rhs) = GetBinopExpression();
+                            return new BinopExpresison(lhs, rhs, operation);
                     }
                     return lhs;
                 case TokenType.Int32:
@@ -292,11 +307,13 @@ namespace Wasmic.Core
                     var i64 = _lexer.Next.Value;
                     _lexer.Advance();
                     return new Literal("i64", i64);
+                case TokenType.If:
+                    return GetIf();
             }
 
             throw new NotImplementedException(_lexer.Next.TokenType.ToString());
         }
-        
+
         private IWasmicSyntaxTreeExpression GetLocalVariableOrFunctionCall(string name)
         {
             if(_lexer.Next.TokenType == TokenType.L_Paren)
@@ -308,7 +325,8 @@ namespace Wasmic.Core
             {
                 var localVariableType = _localVariableMap[name];
                 return new GetLocalVariable(name, localVariableType);
-            } else if(_parameters.Any(v => v.Name == name))
+            }
+            else if(_parameters.Any(v => v.Name == name))
             {
                 var parameter = _parameters.Single(p => p.Name == name);
                 return new GetLocalVariable(parameter.Name, parameter.Type);

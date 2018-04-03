@@ -15,12 +15,6 @@ namespace Wasmic.Core
             => enumerable.Any() ? " " + string.Join(" ", enumerable) : string.Empty;
     }
 
-
-    internal static class WasmicCompilerCache<T>
-    {
-        internal static Func<T> Factory;
-    }
-
     public class WasmicCompiler
     {
         public static string Compile(IWasmicSyntaxTree tree)
@@ -172,6 +166,11 @@ namespace Wasmic.Core
             var result = string.Empty;
             result += GenerateWat(ifExpression.Comparison);
             result += " if";
+            if(ifExpression.Type != null)
+            {
+                result += $" (result {ifExpression.Type})";
+            }
+
             result += ifExpression.IfBlock.Select(Compile).JoinWithPriorSpaceOrEmpty();
             if(ifExpression.ElseBlock != null)
             {
