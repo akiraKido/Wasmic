@@ -14,8 +14,6 @@ namespace Wasmic.Core
     {
         public FunctionDefinition Generate(ILexer lexer)
         {
-            lexer.AssertNext(TokenType.Func);
-
             // modifiers
             var identifiers = GetFunctionModifiers(lexer);
             bool isPublic = identifiers.SingleOrDefault(s => s == "pub") != null;

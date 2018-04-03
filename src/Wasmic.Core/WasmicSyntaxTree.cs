@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Wasmic.Core
 {
@@ -13,16 +14,12 @@ namespace Wasmic.Core
             var functionMap = new FunctionMap();
             var functions = new List<IWasmicSyntaxTree>();
             var functionDefinitionGenerator = new FunctionDefinitionGenerator();
+            var heap = new LinearHeap();
 
             while(lexer.Next.TokenType != TokenType.EndOfText)
             {
                 switch(lexer.Next.TokenType)
                 {
-                    case TokenType.Func:
-                        var functionGenerator = new FunctionGenerator(lexer, functionMap, functionDefinitionGenerator);
-                        var function = functionGenerator.GetFunction();
-                        functions.Add(function);
-                        break;
                     case TokenType.Extern:
                         lexer.Advance(); // eat extern
                         var functionDefinition = functionDefinitionGenerator.Generate(lexer);
@@ -30,13 +27,29 @@ namespace Wasmic.Core
                         functions.Add(new Import(functionDefinition.Name.Split('.'), functionDefinition));
                         break;
                     default:
-                        throw new NotImplementedException();
+                        var functionGenerator = new FunctionGenerator(
+                            lexer,
+                            functionMap,
+                            functionDefinitionGenerator,
+                            heap
+                        );
+                        var function = functionGenerator.GetFunction();
+                        functions.Add(function);
+                        break;
                 }
 
                 if(lexer.Next.TokenType == TokenType.SemiColon)
                 {
                     lexer.Advance();
                 }
+            }
+
+            if(heap.IsAllocated)
+            {
+                functions = new[] {new Memory()}
+                    .Concat(heap.GetAllocatedStrings().Select(v => new Data(v.offset, v.value) as IWasmicSyntaxTree))
+                    .Concat(functions).ToList();
+                
             }
 
             return new Module(functions);
@@ -100,6 +113,9 @@ namespace Wasmic.Core
         IfExpression,
         Comparison,
         Import,
+        String,
+        Memory,
+        Data
     }
 
     public interface IWasmicSyntaxTree
@@ -258,6 +274,22 @@ namespace Wasmic.Core
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Literal;
     }
 
+    public class WasmicString : IWasmicSyntaxTreeExpression
+    {
+        public WasmicString(string name, int offset, int length)
+        {
+            Offset = offset;
+            Length = length;
+            Name = name;
+        }
+
+        public string Name { get; }
+        public int Offset { get; }
+        public int Length { get; }
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.String;
+        public string Type => "string";
+    }
+
     public class FunctionCall : IWasmicSyntaxTreeExpression
     {
         public FunctionCall(string name, string type, IEnumerable<IWasmicSyntaxTreeExpression> parameters)
@@ -332,4 +364,23 @@ namespace Wasmic.Core
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Import;
     }
     
+    public class Memory : IWasmicSyntaxTree
+    {
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Memory;
+    }
+
+    public class Data : IWasmicSyntaxTree
+    {
+        public Data(int offset, string value)
+        {
+            Offset = offset;
+            Value = value;
+        }
+
+        public int Offset { get; }
+        public string Value { get; }
+
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Data;
+    }
+
 }

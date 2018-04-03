@@ -42,6 +42,7 @@ namespace Wasmic.Core
         Period,
 
         EqualComparer,
+        String,
     }
     internal struct Token
     {
@@ -113,6 +114,20 @@ namespace Wasmic.Core
             }
 
             var current = _code[_offest];
+
+            if(current == '"')
+            {
+                _offest++;
+                var startPos = _offest;
+                do
+                {
+                    AdvanceOffsetWhile(c => c != '"');
+                } while(_code[_offest - 1] == '\\');
+                var result = _code.Substring(startPos, _offest - startPos);
+                _offest++;
+                _next = new Token(TokenType.String, result);
+                return;
+            }
 
             if(current == '=')
             {

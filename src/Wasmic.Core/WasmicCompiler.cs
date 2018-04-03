@@ -52,6 +52,12 @@ namespace Wasmic.Core
                     return GenerateWat((Comparison)tree);
                 case WasmicSyntaxTreeType.Import:
                     return GenerateWat((Import)tree);
+                case WasmicSyntaxTreeType.Memory:
+                    return GenerateWat((Memory)tree);
+                case WasmicSyntaxTreeType.Data:
+                    return GenerateWat((Data)tree);
+                case WasmicSyntaxTreeType.String:
+                    return GenerateWat((WasmicString)tree);
             }
             throw new NotImplementedException();
         }
@@ -68,6 +74,12 @@ namespace Wasmic.Core
                         break;
                     case Import import:
                         childWats.Add(GenerateWat(import));
+                        break;
+                    case Memory memory:
+                        childWats.Add(GenerateWat(memory));
+                        break;
+                    case Data data:
+                        childWats.Add(GenerateWat(data));
                         break;
                     default:
                         throw new NotImplementedException();
@@ -87,11 +99,23 @@ namespace Wasmic.Core
                 .Select(Compile)
                 .JoinWithPriorSpaceOrEmpty();
 
-            var localVariables = function.LocalVariables
-                .Select(kv => $"(local ${kv.Key} {kv.Value})")
-                .JoinWithPriorSpaceOrEmpty();
+            var localVariables = new List<string>();
+            foreach(var variable in function.LocalVariables)
+            {
+                if(variable.Value == "string")
+                {
+                    localVariables.Add($"(local ${variable.Key}_0 i32)");
+                    localVariables.Add($"(local ${variable.Key}_1 i32)");
+                }
+                else
+                {
+                    localVariables.Add($"(local ${variable.Key} {variable.Value})");
+                }
+            }
 
-            return $"(func {functionDef}{localVariables}{body})";
+            var localVariablesString = localVariables.JoinWithPriorSpaceOrEmpty();
+
+            return $"(func {functionDef}{localVariablesString}{body})";
         }
 
         private static string GenerateWat(FunctionDefinition functionDef)
@@ -111,6 +135,10 @@ namespace Wasmic.Core
 
         private static string GenerateWat(Parameter parameter)
         {
+            if(parameter.Type == "string")
+            {
+                return $"(param ${parameter.Name}_0 i32) (param ${parameter.Name}_1 i32)";
+            }
             return $"(param ${parameter.Name} {parameter.Type})";
         }
 
@@ -128,14 +156,36 @@ namespace Wasmic.Core
 
         private static string GenerateWat(GetLocalVariable getLocalVariable)
         {
+            if(getLocalVariable.Type == "string")
+            {
+                var result = string.Empty;
+                result += $"get_local ${getLocalVariable.Name}_0 ";
+                result += $"get_local ${getLocalVariable.Name}_1";
+                return result;
+            }
             return $"get_local ${getLocalVariable.Name}";
         }
 
         private static string GenerateWat(SetLocalVariable setLocalVariable)
         {
-            var result = Compile(setLocalVariable.Expression);
-            result += $" set_local ${setLocalVariable.Name}";
-            return result;
+            if(setLocalVariable.Expression is WasmicString wasmicString)
+            {
+                var offset = wasmicString.Offset;
+                var length = wasmicString.Length;
+
+                string result = string.Empty;
+                result += $"i32.const {offset} ";
+                result += $"set_local ${setLocalVariable.Name}_0 ";
+                result += $"i32.const {length} ";
+                result += $"set_local ${setLocalVariable.Name}_1";
+                return result;
+            }
+            else
+            {
+                var result = Compile(setLocalVariable.Expression);
+                result += $" set_local ${setLocalVariable.Name}";
+                return result;
+            }
         }
 
 
@@ -172,7 +222,11 @@ namespace Wasmic.Core
         private static string GenerateWat(FunctionCall functionCall)
         {
             var parameterCalls = functionCall.Parameters.Select(Compile).JoinOrEmpty();
-            return $"{parameterCalls} call ${functionCall.Name}";
+            if(string.IsNullOrWhiteSpace(parameterCalls) == false)
+            {
+                parameterCalls += " ";
+            }
+            return $"{parameterCalls}call ${functionCall.Name}";
         }
 
         private static string GenerateWat(IfExpression ifExpression)
@@ -216,6 +270,24 @@ namespace Wasmic.Core
             var components = import.JsObjectPath.Select(s => $"\"{s}\"").JoinWithPriorSpaceOrEmpty();
             var definition = GenerateWat(import.FunctionDefinition);
             return $"(import{components} (func {definition}))";
+        }
+
+        private static string GenerateWat(Memory memory)
+        {
+            return "(import \"js\" \"mem\" (memory 1))";
+        }
+
+        private static string GenerateWat(Data data)
+        {
+            return $"(data (i32.const {data.Offset}) \"{data.Value}\")";
+        }
+
+        private static string GenerateWat(WasmicString str)
+        {
+            // this is for loading without variables;
+            var result = $"i32.const {str.Offset} ";
+            result += $"i32.const {str.Length}";
+            return result;
         }
 
     }

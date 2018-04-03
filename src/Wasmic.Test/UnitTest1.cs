@@ -250,7 +250,54 @@ namespace Wasmic.Test
                                 "i32.const 10 " +
                                 "call $console.log)" +
                          ")", actual);
+        }
+        [Fact]
+        public void StringWithVariable()
+        {
+            var code = /*"use memory 1 from js.mem;" + */
+                       "extern func console.log(s: string);" +
+                       "func hoge() {" +
+                       "    var x = \"hoge\";" +
+                       "    console.log(x)" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
 
+            Assert.Equal("(module " +
+                            "(import \"js\" \"mem\" (memory 1)) " +
+                            "(data (i32.const 0) \"hoge\") " +
+                            "(import \"console\" \"log\" (func $console.log (param $s_0 i32) (param $s_1 i32))) " +
+                            "(func $hoge (local $x_0 i32) (local $x_1 i32) " +
+                                "i32.const 0 " +
+                                "set_local $x_0 " +
+                                "i32.const 4 " +
+                                "set_local $x_1 " +
+                                "get_local $x_0 " +
+                                "get_local $x_1 " +
+                                "call $console.log)" +
+                         ")", actual);
+        }
+
+        [Fact]
+        public void StringWithoutVariable()
+        {
+            var code = /*"use memory 1 from js.mem;" + */
+                "extern func console.log(s: string);" +
+                "func hoge() {" +
+                "    console.log(\"hoge\")" +
+                "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                             "(import \"js\" \"mem\" (memory 1)) " +
+                             "(data (i32.const 0) \"hoge\") " +
+                             "(import \"console\" \"log\" (func $console.log (param $s_0 i32) (param $s_1 i32))) " +
+                             "(func $hoge " +
+                                "i32.const 0 " +
+                                "i32.const 4 " +
+                                "call $console.log)" +
+                         ")", actual);
         }
     }
 }

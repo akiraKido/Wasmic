@@ -16,6 +16,7 @@ namespace Wasmic.Core
         private readonly ILexer _lexer;
         private readonly IModuleFunctionMap _functionMap;
         private readonly IFunctionDefinitionGenerator _functionDefinitionGenerator;
+        private readonly IHeap _heap;
 
         // key = name, value = type
         private Dictionary<string, string> _localVariableMap;
@@ -24,11 +25,13 @@ namespace Wasmic.Core
         public FunctionGenerator(
             ILexer lexer, 
             IModuleFunctionMap functionMap,
-            IFunctionDefinitionGenerator functionDefinitionGenerator)
+            IFunctionDefinitionGenerator functionDefinitionGenerator,
+            IHeap heap)
         {
             _lexer = lexer;
             _functionMap = functionMap;
             _functionDefinitionGenerator = functionDefinitionGenerator;
+            _heap = heap;
         }
 
 
@@ -244,6 +247,11 @@ namespace Wasmic.Core
                     var i64 = _lexer.Next.Value;
                     _lexer.Advance();
                     return new Literal("i64", i64);
+                case TokenType.String:
+                    var result = _lexer.Next.Value;
+                    _lexer.Advance();
+                    (int offset, string label) = _heap.AllocateOrGetString(result);
+                    return new WasmicString(label, offset, result.Length);
                 case TokenType.If:
                     return GetIf();
             }
