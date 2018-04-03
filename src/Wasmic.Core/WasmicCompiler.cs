@@ -13,6 +13,9 @@ namespace Wasmic.Core
     {
         internal static string JoinWithPriorSpaceOrEmpty(this IEnumerable<string> enumerable)
             => enumerable.Any() ? " " + string.Join(" ", enumerable) : string.Empty;
+
+        internal static string JoinOrEmpty(this IEnumerable<string> enumerable)
+            => enumerable.Any() ? string.Join(" ", enumerable) : string.Empty;
     }
 
     public class WasmicCompiler
@@ -47,6 +50,8 @@ namespace Wasmic.Core
                     return GenerateWat((IfExpression)tree);
                 case WasmicSyntaxTreeType.Comparison:
                     return GenerateWat((Comparison)tree);
+                case WasmicSyntaxTreeType.Import:
+                    return GenerateWat((Import)tree);
             }
             throw new NotImplementedException();
         }
@@ -61,6 +66,9 @@ namespace Wasmic.Core
                     case Function function:
                         childWats.Add(GenerateWat(function));
                         break;
+                    case Import import:
+                        childWats.Add(GenerateWat(import));
+                        break;
                     default:
                         throw new NotImplementedException();
                 }
@@ -73,8 +81,21 @@ namespace Wasmic.Core
 
         private static string GenerateWat(Function function)
         {
-            var functionDef = function.FunctionDefinition;
+            var functionDef = GenerateWat(function.FunctionDefinition);
 
+            var body = function.Body
+                .Select(Compile)
+                .JoinWithPriorSpaceOrEmpty();
+
+            var localVariables = function.LocalVariables
+                .Select(kv => $"(local ${kv.Key} {kv.Value})")
+                .JoinWithPriorSpaceOrEmpty();
+
+            return $"(func {functionDef}{localVariables}{body})";
+        }
+
+        private static string GenerateWat(FunctionDefinition functionDef)
+        {
             var name = functionDef.IsPublic
                 ? $"(export \"{functionDef.Name}\")"
                 : $"${functionDef.Name}";
@@ -85,15 +106,7 @@ namespace Wasmic.Core
 
             var returnType = functionDef.ReturnType != null ? " " + GenerateWat(functionDef.ReturnType) : string.Empty;
 
-            var body = function.Body
-                .Select(Compile)
-                .JoinWithPriorSpaceOrEmpty();
-
-            var localVariables = function.LocalVariables
-                .Select(kv => $"(local ${kv.Key} {kv.Value})")
-                .JoinWithPriorSpaceOrEmpty();
-
-            return $"(func {name}{parameterWats}{returnType}{localVariables}{body})";
+            return $"{name}{parameterWats}{returnType}";
         }
 
         private static string GenerateWat(Parameter parameter)
@@ -158,7 +171,8 @@ namespace Wasmic.Core
 
         private static string GenerateWat(FunctionCall functionCall)
         {
-            return $"call ${functionCall.Name}";
+            var parameterCalls = functionCall.Parameters.Select(Compile).JoinOrEmpty();
+            return $"{parameterCalls} call ${functionCall.Name}";
         }
 
         private static string GenerateWat(IfExpression ifExpression)
@@ -195,6 +209,13 @@ namespace Wasmic.Core
                     throw new NotImplementedException();
             }
             return result;
+        }
+
+        private static string GenerateWat(Import import)
+        {
+            var components = import.JsObjectPath.Select(s => $"\"{s}\"").JoinWithPriorSpaceOrEmpty();
+            var definition = GenerateWat(import.FunctionDefinition);
+            return $"(import{components} (func {definition}))";
         }
 
     }

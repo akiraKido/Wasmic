@@ -15,15 +15,20 @@ namespace Wasmic.Core
     {
         private readonly ILexer _lexer;
         private readonly IModuleFunctionMap _functionMap;
-        private IEnumerable<Parameter> _parameters;
+        private readonly IFunctionDefinitionGenerator _functionDefinitionGenerator;
 
         // key = name, value = type
         private Dictionary<string, string> _localVariableMap;
+        private IEnumerable<Parameter> _parameters;
 
-        public FunctionGenerator(ILexer lexer, IModuleFunctionMap functionMap)
+        public FunctionGenerator(
+            ILexer lexer, 
+            IModuleFunctionMap functionMap,
+            IFunctionDefinitionGenerator functionDefinitionGenerator)
         {
             _lexer = lexer;
             _functionMap = functionMap;
+            _functionDefinitionGenerator = functionDefinitionGenerator;
         }
 
 
@@ -31,33 +36,14 @@ namespace Wasmic.Core
         {
             _localVariableMap = new Dictionary<string, string>();
 
-            // modifiers
-            var identifiers = GetFunctionModifiers();
-            bool isPublic = identifiers.SingleOrDefault(s => s == "pub") != null;
+            var functionDefinition = _functionDefinitionGenerator.Generate(_lexer);
 
-            _lexer.Advance(); // eat "func"
-
-            // function name
-            _lexer.AssertNext(TokenType.Identifier);
-            var name = _lexer.Next.Value; // eat name
-            _lexer.Advance();
-
-            // parameters
-            _parameters = GetFunctionParameters();
-
-            // return type
-            ReturnType returnType = null;
-            if(_lexer.Next.TokenType == TokenType.Colon)
-            {
-                _lexer.Advance(); // eat colon
-                returnType = GetFunctionReturnType();
-            }
-
-            var functionDefinition = new FunctionDefinition(isPublic, name, _parameters, returnType);
             if(_functionMap.Add(functionDefinition) == false)
             {
-                throw new WasmicCompilerException($"function {name} is already declared");
+                throw new WasmicCompilerException($"function {functionDefinition.Name} is already declared");
             }
+
+            _parameters = functionDefinition.Parameters;
 
             // body
             var body = GetBlock();
@@ -65,60 +51,6 @@ namespace Wasmic.Core
             var function = new Function(functionDefinition, body, _localVariableMap);
             _localVariableMap = null;
             return function;
-        }
-
-        private IEnumerable<string> GetFunctionModifiers()
-        {
-            var identifiers = new List<string>();
-            while(_lexer.Next.TokenType != TokenType.Func)
-            {
-                _lexer.AssertNext(TokenType.Identifier);
-                identifiers.Add(_lexer.Next.Value);
-                _lexer.Advance();
-            }
-            return identifiers;
-        }
-
-        private IEnumerable<Parameter> GetFunctionParameters()
-        {
-            var parameters = new List<Parameter>();
-
-            _lexer.AssertNext(TokenType.L_Paren);
-            _lexer.Advance();
-            while(_lexer.Next.TokenType != TokenType.R_Paren)
-            {
-                if(parameters.Count > 0)
-                {
-                    _lexer.AssertNext(TokenType.Comma);
-                    _lexer.Advance(); // eat ,
-                }
-                _lexer.AssertNext(TokenType.Identifier);
-                var varName = _lexer.Next.Value;
-                if(parameters.Any(v => v.Name == varName))
-                {
-                    throw new WasmicCompilerException($"parameter {varName} is a duplicate");
-                }
-
-                _lexer.Advance(); // eat variable name
-                _lexer.AssertNext(TokenType.Colon);
-                _lexer.Advance(); // eat :
-                _lexer.AssertNext(TokenType.Identifier);
-                var type = _lexer.Next.Value;
-                _lexer.Advance(); // eat type
-
-                parameters.Add(new Parameter(varName, type));
-            }
-            _lexer.Advance(); // eat )
-
-            return parameters;
-        }
-
-        private ReturnType GetFunctionReturnType()
-        {
-            _lexer.AssertNext(TokenType.Identifier);
-            var type = _lexer.Next.Value;
-            _lexer.Advance(); // eat type
-            return new ReturnType(type);
         }
 
         private IEnumerable<IWasmicSyntaxTree> GetBlock()
@@ -222,20 +154,18 @@ namespace Wasmic.Core
 
             var comparison = GetComparison();
             var ifBlock = GetBlock();
-            var ifBlockReturnType = ifBlock.Last() as IWasmicSyntaxTreeExpression;
 
             IEnumerable<IWasmicSyntaxTree> elseBlock = null;
-            IWasmicSyntaxTreeExpression elseBlockReturnType = null;
             if(_lexer.Next.TokenType == TokenType.Else)
             {
                 _lexer.Advance(); // eat else
                 elseBlock = GetBlock();
-                elseBlockReturnType = elseBlock.Last() as IWasmicSyntaxTreeExpression;
             }
 
-            if(ifBlockReturnType != null)
+            if(ifBlock.Last() is IWasmicSyntaxTreeExpression ifBlockReturnType)
             {
-                if(ifBlockReturnType.Type != elseBlockReturnType?.Type)
+                if(!(elseBlock.Last() is IWasmicSyntaxTreeExpression elseBlockReturnType)
+                    || ifBlockReturnType.Type != elseBlockReturnType.Type)
                 {
                     throw new WasmicCompilerException("if block and else block doesn't match");
                 }
@@ -281,6 +211,13 @@ namespace Wasmic.Core
                 case TokenType.Identifier:
                     var name = _lexer.Next.Value;
                     _lexer.Advance();
+                    while(_lexer.Next.TokenType == TokenType.Period)
+                    {
+                        _lexer.Advance();
+                        _lexer.AssertNext(TokenType.Identifier);
+                        name += $".{_lexer.Next.Value}";
+                        _lexer.Advance();
+                    }
 
                     if(_lexer.Next.TokenType == TokenType.Equal)
                     {
@@ -338,19 +275,43 @@ namespace Wasmic.Core
 
         private FunctionCall GetFunctionCall(string name)
         {
-            _lexer.AssertNext(TokenType.L_Paren);
-            _lexer.Advance();
-            _lexer.AssertNext(TokenType.R_Paren);
-            _lexer.Advance();
-
             if(_functionMap.Contains(name) == false)
             {
                 throw new WasmicCompilerException($"function {name} is not declared");
+
             }
 
             var callFunc = _functionMap.Get(name);
 
-            return new FunctionCall(name, callFunc.ReturnType.Type);
+            var parameters = new List<IWasmicSyntaxTreeExpression>();
+
+            _lexer.AssertNext(TokenType.L_Paren);
+            _lexer.Advance();
+            if(_lexer.Next.TokenType != TokenType.R_Paren)
+            {
+                do
+                {
+                    var parameterLoad = GetExpression();
+                    parameters.Add(parameterLoad);
+                } while(_lexer.Next.TokenType == TokenType.Comma);
+            }
+            _lexer.AssertNext(TokenType.R_Paren);
+            _lexer.Advance();
+
+            var expectedParameters = callFunc.Parameters;
+            if(expectedParameters.Count != parameters.Count)
+            {
+                throw new WasmicCompilerException($"unmatched argument count");
+            }
+            for(int i = 0; i < expectedParameters.Count; i++)
+            {
+                if(expectedParameters[i].Type != parameters[i].Type)
+                {
+                    throw new WasmicCompilerException($"expected argument to be {expectedParameters[i].Type} but found {parameters[i].Type}");
+                }
+            }
+
+            return new FunctionCall(name, callFunc.ReturnType?.Type, parameters);
         }
 
         private (Operation operation, IWasmicSyntaxTreeExpression rhs) GetBinopExpression()

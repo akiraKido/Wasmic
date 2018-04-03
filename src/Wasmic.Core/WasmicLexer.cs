@@ -24,6 +24,8 @@ namespace Wasmic.Core
         Return,
         Var,
         If,
+        Else,
+        Extern,
 
         L_Paren,
         R_Paren,
@@ -37,9 +39,9 @@ namespace Wasmic.Core
         Star,
         Slash,
         Equal,
-        Else,
+        Period,
 
-        EqualComparer
+        EqualComparer,
     }
     internal struct Token
     {
@@ -61,6 +63,7 @@ namespace Wasmic.Core
             { "var", new Token(TokenType.Var, "var") },
             { "if", new Token(TokenType.If, "if") },
             { "else", new Token(TokenType.Else, "else") },
+            { "extern", new Token(TokenType.Extern, "extern") },
             { "==", new Token(TokenType.EqualComparer, "==") },
         };
 
@@ -78,6 +81,7 @@ namespace Wasmic.Core
             { '*', new Token(TokenType.Star, "*") },
             { '/', new Token(TokenType.Slash, "/") },
             { '=', new Token(TokenType.Equal, "=") },
+            { '.', new Token(TokenType.Period, ".") },
         };
 
         private readonly string _code;

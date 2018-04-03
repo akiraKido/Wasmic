@@ -1,20 +1,42 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Wasmic.Core
 {
     public class WasmicSyntaxTree
     {
+        private static int _externFunctionIndex = 0;
+
         public IWasmicSyntaxTree ParseText(string text)
         {
             var lexer = new WasmicLexer(text);
             var functionMap = new FunctionMap();
             var functions = new List<IWasmicSyntaxTree>();
+            var functionDefinitionGenerator = new FunctionDefinitionGenerator();
 
             while(lexer.Next.TokenType != TokenType.EndOfText)
             {
-                var functionGenerator = new FunctionGenerator(lexer, functionMap);
-                var function = functionGenerator.GetFunction();
-                functions.Add(function);
+                switch(lexer.Next.TokenType)
+                {
+                    case TokenType.Func:
+                        var functionGenerator = new FunctionGenerator(lexer, functionMap, functionDefinitionGenerator);
+                        var function = functionGenerator.GetFunction();
+                        functions.Add(function);
+                        break;
+                    case TokenType.Extern:
+                        lexer.Advance(); // eat extern
+                        var functionDefinition = functionDefinitionGenerator.Generate(lexer);
+                        functionMap.Add(functionDefinition);
+                        functions.Add(new Import(functionDefinition.Name.Split('.'), functionDefinition));
+                        break;
+                    default:
+                        throw new NotImplementedException();
+                }
+
+                if(lexer.Next.TokenType == TokenType.SemiColon)
+                {
+                    lexer.Advance();
+                }
             }
 
             return new Module(functions);
@@ -23,6 +45,9 @@ namespace Wasmic.Core
         private class FunctionMap : IModuleFunctionMap
         {
             private readonly Dictionary<string, FunctionDefinition> _functions 
+                = new Dictionary<string, FunctionDefinition>();
+
+            private readonly Dictionary<string, FunctionDefinition> _externFunctions
                 = new Dictionary<string, FunctionDefinition>();
 
             public bool Add(FunctionDefinition functionDefinition)
@@ -43,8 +68,16 @@ namespace Wasmic.Core
             /// <returns></returns>
             public FunctionDefinition Get(string name)
             {
-                if(_functions.ContainsKey(name) == false) throw new WasmicCompilerException($"function {name} is not declared");
-                return _functions[name];
+                if(_functions.ContainsKey(name))
+                {
+                    return _functions[name];
+                }
+
+                if(_externFunctions.ContainsKey(name))
+                {
+                    return _functions[name];
+                }
+                throw new WasmicCompilerException($"function {name} is not declared");
             }
 
             public bool Contains(string name) => _functions.ContainsKey(name);
@@ -65,7 +98,8 @@ namespace Wasmic.Core
         Literal,
         FunctionCall,
         IfExpression,
-        Comparison
+        Comparison,
+        Import,
     }
 
     public interface IWasmicSyntaxTree
@@ -109,7 +143,7 @@ namespace Wasmic.Core
 
     public class FunctionDefinition : IWasmicSyntaxTree
     {
-        public FunctionDefinition(bool isPublic, string name, IEnumerable<Parameter> parameters, ReturnType returnType)
+        public FunctionDefinition(bool isPublic, string name, IReadOnlyList<Parameter> parameters, ReturnType returnType)
         {
             IsPublic = isPublic;
             Name = name;
@@ -119,7 +153,7 @@ namespace Wasmic.Core
 
         public bool IsPublic { get; }
         public string Name { get; }
-        public IEnumerable<Parameter> Parameters { get; }
+        public IReadOnlyList<Parameter> Parameters { get; }
         public ReturnType ReturnType { get; }
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.FunctionDefinition;
     }
@@ -226,14 +260,16 @@ namespace Wasmic.Core
 
     public class FunctionCall : IWasmicSyntaxTreeExpression
     {
-        public FunctionCall(string name, string type)
+        public FunctionCall(string name, string type, IEnumerable<IWasmicSyntaxTreeExpression> parameters)
         {
             Name = name;
             Type = type;
+            Parameters = parameters;
         }
 
         public string Name { get; }
         public string Type { get; }
+        public IEnumerable<IWasmicSyntaxTreeExpression> Parameters { get; }
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.FunctionCall;
     }
 
@@ -280,6 +316,20 @@ namespace Wasmic.Core
         public ComparisonOperator ComparisonOperator { get; }
         public string Type => "i32";
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Comparison;
+    }
+
+    public class Import : IWasmicSyntaxTree
+    {
+        public Import(IEnumerable<string> jsObjectPath, FunctionDefinition functionDefinition)
+        {
+            JsObjectPath = jsObjectPath;
+            FunctionDefinition = functionDefinition;
+        }
+
+        public IEnumerable<string> JsObjectPath { get; }
+        public FunctionDefinition FunctionDefinition { get; }
+
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.Import;
     }
     
 }

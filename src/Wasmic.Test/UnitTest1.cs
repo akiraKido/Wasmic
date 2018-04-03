@@ -234,6 +234,23 @@ namespace Wasmic.Test
                          ")", actual);
         }
 
+        [Fact]
+        public void Extern()
+        {
+            var code = "extern func console.log(x: i32);" +
+                       "func hoge() {" +
+                       "    console.log(10)" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
 
+            Assert.Equal("(module " +
+                            "(import \"console\" \"log\" (func $console.log (param $x i32))) " +
+                            "(func $hoge " +
+                                "i32.const 10 " +
+                                "call $console.log)" +
+                         ")", actual);
+
+        }
     }
 }
