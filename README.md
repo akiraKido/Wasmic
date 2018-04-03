@@ -57,6 +57,21 @@ pub func getAnswerPlus1(): i32 {
     pub func bar(): i32 { return foo(42); } // returns 43
     ```
 
+### Loops
+
+#### Infinite Loop
+
+- Example
+    ```wasmic
+    func foo() {
+        var i = 0
+        loop {
+            i = i + 1
+            if i == 5 { break }
+        }
+    }
+    ```
+
 ### Operations
 
 - Addition
