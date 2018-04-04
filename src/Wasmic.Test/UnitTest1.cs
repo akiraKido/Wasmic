@@ -373,5 +373,24 @@ namespace Wasmic.Test
                                 "set_local $x" +
                          "))", actual);
         }
+
+        [Fact]
+        public void PlusEqual()
+        {
+            var code = "func hoge() {" +
+                       "    var x = 1" +
+                       "    x += 1" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+            Assert.Equal("(module (func $hoge (local $x i32) " +
+                            "i32.const 1 " +
+                            "set_local $x " +
+                            "i32.const 1 " +
+                            "get_local $x " +
+                            "i32.add " +
+                            "set_local $x" +
+                         "))", actual);
+        }
     }
 }

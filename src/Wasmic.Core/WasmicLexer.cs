@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Wasmic.Core
 {
@@ -48,7 +50,8 @@ namespace Wasmic.Core
         GrThanOrEqComparer,
         LsThanOrEqComparer,
         GrThanComparer,
-        LsThanComparer
+        LsThanComparer,
+        PlusEqual
     }
     internal struct Token
     {
@@ -61,9 +64,77 @@ namespace Wasmic.Core
             Value = value;
         }
     }
+
+    internal interface INode: IEnumerable<INode>
+    {
+        char Key { get; }
+        IEnumerable<INode> Children { get; }
+        bool TryGetToken(string code, ref int offset, out Token token);
+    }
+    
+    internal class Node : INode
+    {
+        private readonly Token _defaultToken;
+        private readonly char _character;
+        private readonly bool _hasDefaultToken;
+
+        internal Node()
+        {
+            _character = '\0';
+            _hasDefaultToken = false;
+        }
+
+        internal Node(char c, Token defaultToken)
+        {
+            _character = c;
+            _defaultToken = defaultToken;
+            _hasDefaultToken = true;
+        }
+
+        public char Key => _character;
+        public bool TryGetToken(string code, ref int offset, out Token token)
+        {
+            if(offset >= code.Length)
+            {
+                token = default;
+                return false;
+            }
+
+            var next = code[offset];
+            var viableNode = Children.SingleOrDefault(n => n.Key == next);
+            if(viableNode != null)
+            {
+                offset++;
+                return viableNode.TryGetToken(code, ref offset, out token);
+            }
+
+            token = _hasDefaultToken ? _defaultToken : default;
+            return _hasDefaultToken;
+        }
+
+        private readonly List<INode> _children = new List<INode>();
+        public IEnumerable<INode> Children => _children;
+
+        internal void Add(INode node)
+        {
+            _children.Add(node);
+        }
+
+        public IEnumerator<INode> GetEnumerator() => throw new NotSupportedException();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     internal class WasmicLexer : ILexer
     {
-        private static readonly Dictionary<string, Token> PredefinedIdentifiers = new Dictionary<string, Token>()
+        private static readonly INode TokenTree = new Node
+        {
+            new Node('+', new Token(TokenType.Plus, "+"))
+            {
+                new Node('=', new Token(TokenType.PlusEqual, "+="))
+            }
+        };
+
+        private static readonly IReadOnlyDictionary<string, Token> PredefinedIdentifiers = new Dictionary<string, Token>()
         {
             { "func", new Token(TokenType.Func, "func") },
             { "return", new Token(TokenType.Return, "return") },
@@ -78,7 +149,7 @@ namespace Wasmic.Core
             { "<=", new Token(TokenType.LsThanOrEqComparer, "<=") },
         };
 
-        private static readonly Dictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
+        private static readonly IReadOnlyDictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
         {
             { '(', new Token(TokenType.L_Paren, "(") },
             { ')', new Token(TokenType.R_Paren, ")") },
@@ -96,6 +167,12 @@ namespace Wasmic.Core
             { '>', new Token(TokenType.GrThanComparer, ">") },
             { '<', new Token(TokenType.LsThanComparer, "<") },
         };
+
+        private static readonly IReadOnlyDictionary<char, Dictionary<string, Token>> DoubleTokens
+            = new Dictionary<char, Dictionary<string, Token>>
+            {
+                { '+', new Dictionary<string, Token>{{ "+=", new Token(TokenType.PlusEqual, "+=") }} }
+            };
 
         private readonly string _code;
         private int _offest;
@@ -126,6 +203,12 @@ namespace Wasmic.Core
             }
 
             var current = _code[_offest];
+
+            if(TokenTree.TryGetToken(_code, ref _offest, out var token))
+            {
+                _next = token;
+                return;
+            }
 
             if(current == '"')
             {

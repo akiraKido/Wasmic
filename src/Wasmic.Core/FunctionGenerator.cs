@@ -307,14 +307,22 @@ namespace Wasmic.Core
                         _lexer.Advance();
                     }
 
-                    if(_lexer.Next.TokenType == TokenType.Equal)
+                    switch(_lexer.Next.TokenType)
                     {
-                        _lexer.Advance(); // eat =
-                        lhs = GetSetLocalVariable(name);
-                    }
-                    else
-                    {
-                        lhs = GetLocalVariableOrFunctionCall(name);
+                        case TokenType.Equal:
+                            _lexer.Advance(); // eat =
+                            lhs = GetSetLocalVariable(name);
+                            break;
+                        case TokenType.PlusEqual:
+                            _lexer.Advance(); // eat +=
+                            var valueExpression = GetExpression();
+                            var getExpr = GetGetLocalVariable(name);
+                            var expression = new BinopExpresison(valueExpression, getExpr, Operation.Add);
+                            lhs = new SetLocalVariable(name, expression);
+                            break;
+                        default:
+                            lhs = GetLocalVariableOrFunctionCall(name);
+                            break;
                     }
                     break;
                 case TokenType.Int32:
@@ -366,6 +374,11 @@ namespace Wasmic.Core
                 return GetFunctionCall(name);
             }
 
+            return GetGetLocalVariable(name);
+        }
+
+        private GetLocalVariable GetGetLocalVariable(string name)
+        {
             if(_localVariableMap.ContainsKey(name))
             {
                 var localVariableType = _localVariableMap[name];
@@ -376,10 +389,8 @@ namespace Wasmic.Core
                 var parameter = _parameters.Single(p => p.Name == name);
                 return new GetLocalVariable(parameter.Name, parameter.Type);
             }
-
             throw new WasmicCompilerException($"no such variable: {name}");
         }
-
 
         private FunctionCall GetFunctionCall(string name)
         {
