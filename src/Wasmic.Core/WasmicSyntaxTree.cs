@@ -330,7 +330,11 @@ namespace Wasmic.Core
 
     public enum ComparisonOperator
     {
-        Equals
+        Equals,
+        GreaterThan,
+        GreaterThanOrEqual,
+        LessThan,
+        LessThanOrEqual
     }
 
     public class Comparison : IWasmicSyntaxTreeExpression

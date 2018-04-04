@@ -228,7 +228,8 @@ namespace Wasmic.Core
             _lexer.AssertNext(TokenType.If);
             _lexer.Advance(); // eat if
 
-            var comparison = GetComparison();
+            var lhs = GetExpression();
+            var comparison = lhs as Comparison ?? GetComparison(lhs);
             var ifBlock = GetBlock();
 
             IEnumerable<IWasmicSyntaxTree> elseBlock = null;
@@ -252,16 +253,25 @@ namespace Wasmic.Core
             return new IfExpression(null, comparison, ifBlock, elseBlock);
         }
 
-        private Comparison GetComparison()
+        private Comparison GetComparison(IWasmicSyntaxTreeExpression lhs)
         {
-            var lhs = GetExpression();
-            if(_lexer.Next.TokenType == TokenType.EqualComparer)
+            ComparisonOperator op;
+            switch(_lexer.Next.TokenType)
             {
-                _lexer.Advance(); // eat ==
-                var rhs = GetExpression();
-                return new Comparison(lhs, rhs, ComparisonOperator.Equals);
+                case TokenType.EqualComparer: op = ComparisonOperator.Equals; break;
+                case TokenType.GrThanComparer: op = ComparisonOperator.GreaterThan; break;
+                case TokenType.GrThanOrEqComparer: op = ComparisonOperator.GreaterThanOrEqual; break;
+                case TokenType.LsThanComparer: op = ComparisonOperator.LessThan; break;
+                case TokenType.LsThanOrEqComparer: op = ComparisonOperator.LessThanOrEqual; break;
+                default:
+                    throw new WasmicCompilerException(
+                        $"expected comparison operator, found {_lexer.Next.TokenType}"
+                    );
             }
-            throw new NotImplementedException();
+            _lexer.Advance(); // eat comparison
+            var rhs = GetExpression();
+            return new Comparison(lhs, rhs, op);
+
         }
 
         private SetLocalVariable GetSetLocalVariable(string name)
@@ -282,6 +292,8 @@ namespace Wasmic.Core
 
         private IWasmicSyntaxTreeExpression GetExpression()
         {
+            IWasmicSyntaxTreeExpression lhs;
+
             switch(_lexer.Next.TokenType)
             {
                 case TokenType.Identifier:
@@ -298,38 +310,53 @@ namespace Wasmic.Core
                     if(_lexer.Next.TokenType == TokenType.Equal)
                     {
                         _lexer.Advance(); // eat =
-                        return GetSetLocalVariable(name);
+                        lhs = GetSetLocalVariable(name);
                     }
-
-                    var lhs = GetLocalVariableOrFunctionCall(name);
-                    switch(_lexer.Next.TokenType)
+                    else
                     {
-                        case TokenType.Plus:
-                        case TokenType.Minus:
-                        case TokenType.Star:
-                        case TokenType.Slash:
-                            (Operation operation, IWasmicSyntaxTreeExpression rhs) = GetBinopExpression();
-                            return new BinopExpresison(lhs, rhs, operation);
+                        lhs = GetLocalVariableOrFunctionCall(name);
                     }
-                    return lhs;
+                    break;
                 case TokenType.Int32:
                     var i32 = _lexer.Next.Value;
                     _lexer.Advance();
-                    return new Literal("i32", i32);
+                    lhs = new Literal("i32", i32);
+                    break;
                 case TokenType.Int64:
                     var i64 = _lexer.Next.Value;
                     _lexer.Advance();
-                    return new Literal("i64", i64);
+                    lhs = new Literal("i64", i64);
+                    break;
                 case TokenType.String:
                     var result = _lexer.Next.Value;
                     _lexer.Advance();
                     (int offset, string label) = _heap.AllocateOrGetString(result);
-                    return new WasmicString(label, offset, result.Length);
+                    lhs = new WasmicString(label, offset, result.Length);
+                    break;
                 case TokenType.If:
-                    return GetIf();
+                    lhs = GetIf();
+                    break;
+                default:
+                    throw new NotImplementedException(_lexer.Next.TokenType.ToString());
             }
 
-            throw new NotImplementedException(_lexer.Next.TokenType.ToString());
+            switch(_lexer.Next.TokenType)
+            {
+                case TokenType.Plus:
+                case TokenType.Minus:
+                case TokenType.Star:
+                case TokenType.Slash:
+                    (Operation operation, IWasmicSyntaxTreeExpression rhs) = GetBinopExpression();
+                    return new BinopExpresison(lhs, rhs, operation);
+                case TokenType.EqualComparer:
+                case TokenType.GrThanComparer:
+                case TokenType.GrThanOrEqComparer:
+                case TokenType.LsThanComparer:
+                case TokenType.LsThanOrEqComparer:
+                    return GetComparison(lhs);
+            }
+
+            return lhs;
         }
 
         private IWasmicSyntaxTreeExpression GetLocalVariableOrFunctionCall(string name)

@@ -45,6 +45,10 @@ namespace Wasmic.Core
         String,
         Loop,
         Break,
+        GrThanOrEqComparer,
+        LsThanOrEqComparer,
+        GrThanComparer,
+        LsThanComparer
     }
     internal struct Token
     {
@@ -70,6 +74,8 @@ namespace Wasmic.Core
             { "loop", new Token(TokenType.Loop, "loop") },
             { "break", new Token(TokenType.Break, "break") },
             { "==", new Token(TokenType.EqualComparer, "==") },
+            { ">=", new Token(TokenType.GrThanOrEqComparer, ">=") },
+            { "<=", new Token(TokenType.LsThanOrEqComparer, "<=") },
         };
 
         private static readonly Dictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
@@ -87,6 +93,8 @@ namespace Wasmic.Core
             { '/', new Token(TokenType.Slash, "/") },
             { '=', new Token(TokenType.Equal, "=") },
             { '.', new Token(TokenType.Period, ".") },
+            { '>', new Token(TokenType.GrThanComparer, ">") },
+            { '<', new Token(TokenType.LsThanComparer, "<") },
         };
 
         private readonly string _code;
@@ -132,20 +140,47 @@ namespace Wasmic.Core
                 _next = new Token(TokenType.String, result);
                 return;
             }
-
-            if(current == '=')
+            
+            switch(current)
             {
-                if(_offest + 1 < _code.Length && _code[_offest + 1] == '=')
-                {
-                    _next = PredefinedIdentifiers["=="];
-                    _offest += 2;
-                }
-                else
-                {
-                    _next = SingleCharTokens['='];
+                case '=':
+                    if(_offest + 1 < _code.Length && _code[_offest + 1] == '=')
+                    {
+                        _next = PredefinedIdentifiers["=="];
+                        _offest += 2;
+                    }
+                    else
+                    {
+                        _next = SingleCharTokens['='];
+                        _offest++;
+                    }
+                    return;
+                case '>':
                     _offest++;
-                }
-                return;
+                    if(_code[_offest] == '=')
+                    {
+                        _offest++;
+                        _next = PredefinedIdentifiers[">="];
+                        return;
+                    }
+                    else
+                    {
+                        _next = SingleCharTokens['>'];
+                        return;
+                    }
+                case '<':
+                    _offest++;
+                    if(_code[_offest] == '=')
+                    {
+                        _offest++;
+                        _next = PredefinedIdentifiers["<="];
+                        return;
+                    }
+                    else
+                    {
+                        _next = SingleCharTokens['<'];
+                        return;
+                    }
             }
 
             if(SingleCharTokens.ContainsKey(current))

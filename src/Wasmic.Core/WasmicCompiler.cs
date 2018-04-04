@@ -263,6 +263,18 @@ namespace Wasmic.Core
                 case ComparisonOperator.Equals:
                     result += " i32.eq";
                     break;
+                case ComparisonOperator.GreaterThan:
+                    result += " i32.gt_s";
+                    break;
+                case ComparisonOperator.GreaterThanOrEqual:
+                    result += " i32.ge_s";
+                    break;
+                case ComparisonOperator.LessThan:
+                    result += " i32.lt_s";
+                    break;
+                case ComparisonOperator.LessThanOrEqual:
+                    result += " i32.le_s";
+                    break;
                 default:
                     throw new NotImplementedException();
             }

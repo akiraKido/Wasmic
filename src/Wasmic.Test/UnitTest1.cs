@@ -337,5 +337,41 @@ namespace Wasmic.Test
                         ")", actual);
 
         }
+
+        [Fact]
+        public void Comparers()
+        {
+            var code = "func hoge() {" +
+                       "    var x = 1 > 10" +
+                       "    x = 1 < 10" +
+                       "    x = 1 >= 10" +
+                       "    x = 1 <= 10" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+            Assert.Equal("(module " +
+                            "(func $hoge (local $x i32) " +
+                                // >
+                                "i32.const 1 " +
+                                "i32.const 10 " +
+                                "i32.gt_s " +
+                                "set_local $x " +
+                                // <
+                                "i32.const 1 " +
+                                "i32.const 10 " +
+                                "i32.lt_s " +
+                                "set_local $x " +
+                                // >=
+                                "i32.const 1 " +
+                                "i32.const 10 " +
+                                "i32.ge_s " +
+                                "set_local $x " +
+                                // <=
+                                "i32.const 1 " +
+                                "i32.const 10 " +
+                                "i32.le_s " +
+                                "set_local $x" +
+                         "))", actual);
+        }
     }
 }
