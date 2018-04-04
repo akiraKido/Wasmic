@@ -13,7 +13,7 @@ namespace Wasmic.Core
             var lexer = new WasmicLexer(text);
             var functionMap = new FunctionMap();
             var functions = new List<IWasmicSyntaxTree>();
-            var functionDefinitionGenerator = new FunctionDefinitionGenerator();
+            var functionDefinitionGenerator = new FunctionDefinitionParser();
             var heap = new LinearHeap();
 
             while(lexer.Next.TokenType != TokenType.EndOfText)
@@ -27,7 +27,7 @@ namespace Wasmic.Core
                         functions.Add(new Import(functionDefinition.Name.Split('.'), functionDefinition));
                         break;
                     default:
-                        var functionGenerator = new FunctionGenerator(
+                        var functionGenerator = new FunctionParser(
                             lexer,
                             functionMap,
                             functionDefinitionGenerator,

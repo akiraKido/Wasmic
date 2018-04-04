@@ -62,7 +62,7 @@ namespace Wasmic.Core
         }
     }
 
-    internal class FunctionGenerator
+    internal class FunctionParser
     {
         private readonly ILexer _lexer;
         private readonly IModuleFunctionMap _functionMap;
@@ -76,7 +76,7 @@ namespace Wasmic.Core
         private readonly ILoopContext _loopContext = new LoopContext();
 
 
-        public FunctionGenerator(
+        public FunctionParser(
             ILexer lexer,
             IModuleFunctionMap functionMap,
             IFunctionDefinitionGenerator functionDefinitionGenerator,

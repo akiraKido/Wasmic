@@ -10,7 +10,7 @@ namespace Wasmic.Core
         FunctionDefinition Generate(ILexer lexer);
     }
 
-    internal class FunctionDefinitionGenerator : IFunctionDefinitionGenerator
+    internal class FunctionDefinitionParser : IFunctionDefinitionGenerator
     {
         public FunctionDefinition Generate(ILexer lexer)
         {
