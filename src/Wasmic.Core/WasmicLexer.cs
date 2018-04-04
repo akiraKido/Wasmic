@@ -65,49 +65,48 @@ namespace Wasmic.Core
         }
     }
 
-    internal interface INode: IEnumerable<INode>
+    internal interface INode : IEnumerable<INode>
     {
         char Key { get; }
-        IEnumerable<INode> Children { get; }
-        bool TryGetToken(string code, ref int offset, out Token token);
+        bool TryGetToken(string code, int offset, out Token token);
     }
-    
-    internal class Node : INode
+
+    internal class LexerNode : INode
     {
+        public char Key { get; }
         private readonly Token _defaultToken;
-        private readonly char _character;
         private readonly bool _hasDefaultToken;
 
-        internal Node()
+        internal LexerNode()
         {
-            _character = '\0';
+            Key = '\0';
             _hasDefaultToken = false;
         }
 
-        internal Node(char c, Token defaultToken)
+        internal LexerNode(char c, Token defaultToken)
         {
-            _character = c;
+            Key = c;
             _defaultToken = defaultToken;
             _hasDefaultToken = true;
         }
 
-        public char Key => _character;
-        public bool TryGetToken(string code, ref int offset, out Token token)
+
+        public bool TryGetToken(string code, int offset, out Token token)
         {
             if(offset >= code.Length)
             {
-                token = default;
-                return false;
+                goto RETURN_DEFAULT;
             }
 
-            var next = code[offset];
-            var viableNode = Children.SingleOrDefault(n => n.Key == next);
+            var current = code[offset];
+            var viableNode = Children.SingleOrDefault(n => n.Key == current);
             if(viableNode != null)
             {
                 offset++;
-                return viableNode.TryGetToken(code, ref offset, out token);
+                return viableNode.TryGetToken(code, offset, out token);
             }
-
+            
+            RETURN_DEFAULT:
             token = _hasDefaultToken ? _defaultToken : default;
             return _hasDefaultToken;
         }
@@ -120,18 +119,46 @@ namespace Wasmic.Core
             _children.Add(node);
         }
 
+        internal void Add(char c, Token token)
+        {
+            _children.Add(new LexerNode(c, token));
+        }
+
         public IEnumerator<INode> GetEnumerator() => throw new NotSupportedException();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     internal class WasmicLexer : ILexer
     {
-        private static readonly INode TokenTree = new Node
+        private static readonly INode TokenTree = new LexerNode
         {
-            new Node('+', new Token(TokenType.Plus, "+"))
+            { '(', new Token(TokenType.L_Paren, "(") },
+            { ')', new Token(TokenType.R_Paren, ")") },
+            { '{', new Token(TokenType.L_Bracket, "{") },
+            { '}', new Token(TokenType.R_Bracket, "}") },
+            { ':', new Token(TokenType.Colon, ":") },
+            { ',', new Token(TokenType.Comma, ",") },
+            { ';', new Token(TokenType.SemiColon, ";") },
+            { '-', new Token(TokenType.Minus, "-") },
+            { '*', new Token(TokenType.Star, "*") },
+            { '/', new Token(TokenType.Slash, "/") },
+            { '.', new Token(TokenType.Period, ".") },
+            new LexerNode('+', new Token(TokenType.Plus, "+"))
             {
-                new Node('=', new Token(TokenType.PlusEqual, "+="))
-            }
+                { '=', new Token(TokenType.PlusEqual, "+=") }
+            },
+            new LexerNode('=', new Token(TokenType.Equal, "="))
+            {
+                { '=', new Token(TokenType.EqualComparer, "==") }
+            },
+            new LexerNode('>', new Token(TokenType.GrThanComparer, ">"))
+            {
+                { '=', new Token(TokenType.GrThanOrEqComparer, ">=") }
+            },
+            new LexerNode('<', new Token(TokenType.LsThanComparer, "<"))
+            {
+                { '=', new Token(TokenType.LsThanOrEqComparer, "<=") }
+            },
         };
 
         private static readonly IReadOnlyDictionary<string, Token> PredefinedIdentifiers = new Dictionary<string, Token>()
@@ -144,28 +171,6 @@ namespace Wasmic.Core
             { "extern", new Token(TokenType.Extern, "extern") },
             { "loop", new Token(TokenType.Loop, "loop") },
             { "break", new Token(TokenType.Break, "break") },
-            { "==", new Token(TokenType.EqualComparer, "==") },
-            { ">=", new Token(TokenType.GrThanOrEqComparer, ">=") },
-            { "<=", new Token(TokenType.LsThanOrEqComparer, "<=") },
-        };
-
-        private static readonly IReadOnlyDictionary<char, Token> SingleCharTokens = new Dictionary<char, Token>
-        {
-            { '(', new Token(TokenType.L_Paren, "(") },
-            { ')', new Token(TokenType.R_Paren, ")") },
-            { '{', new Token(TokenType.L_Bracket, "{") },
-            { '}', new Token(TokenType.R_Bracket, "}") },
-            { ':', new Token(TokenType.Colon, ":") },
-            { ',', new Token(TokenType.Comma, ",") },
-            { ';', new Token(TokenType.SemiColon, ";") },
-            { '+', new Token(TokenType.Plus, "+") },
-            { '-', new Token(TokenType.Minus, "-") },
-            { '*', new Token(TokenType.Star, "*") },
-            { '/', new Token(TokenType.Slash, "/") },
-            { '=', new Token(TokenType.Equal, "=") },
-            { '.', new Token(TokenType.Period, ".") },
-            { '>', new Token(TokenType.GrThanComparer, ">") },
-            { '<', new Token(TokenType.LsThanComparer, "<") },
         };
 
         private static readonly IReadOnlyDictionary<char, Dictionary<string, Token>> DoubleTokens
@@ -202,13 +207,14 @@ namespace Wasmic.Core
                 return;
             }
 
-            var current = _code[_offest];
-
-            if(TokenTree.TryGetToken(_code, ref _offest, out var token))
+            if(TokenTree.TryGetToken(_code, _offest, out var token))
             {
+                _offest += token.Value.Length;
                 _next = token;
                 return;
             }
+
+            var current = _code[_offest];
 
             if(current == '"')
             {
@@ -221,55 +227,6 @@ namespace Wasmic.Core
                 var result = _code.Substring(startPos, _offest - startPos);
                 _offest++;
                 _next = new Token(TokenType.String, result);
-                return;
-            }
-            
-            switch(current)
-            {
-                case '=':
-                    if(_offest + 1 < _code.Length && _code[_offest + 1] == '=')
-                    {
-                        _next = PredefinedIdentifiers["=="];
-                        _offest += 2;
-                    }
-                    else
-                    {
-                        _next = SingleCharTokens['='];
-                        _offest++;
-                    }
-                    return;
-                case '>':
-                    _offest++;
-                    if(_code[_offest] == '=')
-                    {
-                        _offest++;
-                        _next = PredefinedIdentifiers[">="];
-                        return;
-                    }
-                    else
-                    {
-                        _next = SingleCharTokens['>'];
-                        return;
-                    }
-                case '<':
-                    _offest++;
-                    if(_code[_offest] == '=')
-                    {
-                        _offest++;
-                        _next = PredefinedIdentifiers["<="];
-                        return;
-                    }
-                    else
-                    {
-                        _next = SingleCharTokens['<'];
-                        return;
-                    }
-            }
-
-            if(SingleCharTokens.ContainsKey(current))
-            {
-                _next = SingleCharTokens[current];
-                _offest++;
                 return;
             }
 
@@ -306,7 +263,7 @@ namespace Wasmic.Core
                 return;
             }
 
-            throw new NotImplementedException();
+            throw new NotImplementedException(current.ToString());
         }
 
         private void AdvanceOffsetWhile(Func<char, bool> predicate)
