@@ -2,12 +2,12 @@
 {
     internal interface IBinopExpressionParser
     {
-        (Operation operation, IWasmicSyntaxTreeExpression rhs) Parse(ILexer lexer, IExpressionParser expressionParser);
+        BinopExpresison Parse(ILexer lexer, IExpressionParser expressionParser, IWasmicSyntaxTreeExpression lhs);
     }
 
     internal struct BinopExpressionParser : IBinopExpressionParser
     {
-        public (Operation operation, IWasmicSyntaxTreeExpression rhs) Parse(ILexer lexer, IExpressionParser expressionParser)
+        public BinopExpresison Parse(ILexer lexer, IExpressionParser expressionParser, IWasmicSyntaxTreeExpression lhs)
         {
             Operation operation;
             switch(lexer.Next.TokenType)
@@ -29,7 +29,7 @@
             }
             lexer.Advance(); // eat operand
             var rhs = expressionParser.GetExpression();
-            return (operation, rhs);
+            return new BinopExpresison(lhs, rhs, operation);
         }
     }
 }

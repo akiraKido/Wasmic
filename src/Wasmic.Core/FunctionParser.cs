@@ -380,8 +380,7 @@ namespace Wasmic.Core
                 case TokenType.Minus:
                 case TokenType.Star:
                 case TokenType.Slash:
-                    (Operation operation, IWasmicSyntaxTreeExpression rhs) = _binopExpressionParser.Parse(_lexer, this);
-                    return new BinopExpresison(lhs, rhs, operation);
+                    return _binopExpressionParser.Parse(_lexer, this, lhs);
                 case TokenType.EqualComparer:
                 case TokenType.GrThanComparer:
                 case TokenType.GrThanOrEqComparer:
