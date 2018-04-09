@@ -11,58 +11,12 @@ namespace Wasmic.Core
         bool Contains(string name);
     }
 
-    internal interface ILoopContext
+    internal interface IExpressionParser
     {
-        void NewContext();
-        void EscapeContext();
-        void AddNest();
-        void EscapeNest();
-        int NestCount { get; }
+        IWasmicSyntaxTreeExpression GetExpression();
     }
-
-    internal class LoopContext : ILoopContext
-    {
-        private readonly Stack<LoopContextDetails> _contextStack = new Stack<LoopContextDetails>();
-        private LoopContextDetails _currentContext;
-
-        public void NewContext()
-        {
-            if(_currentContext != null)
-            {
-                _contextStack.Push(_currentContext);
-            }
-            _currentContext = new LoopContextDetails();
-        }
-
-        public void EscapeContext()
-        {
-            _currentContext = _contextStack.Count > 0
-                ? _contextStack.Pop()
-                : null;
-        }
-
-        public void AddNest() => _currentContext?.AddNest();
-        public void EscapeNest() => _currentContext?.EscapeNest();
-        public int NestCount => _currentContext?.NestCount ?? 0;
-
-        private class LoopContextDetails
-        {
-            internal int NestCount { get; private set; }
-
-            internal void AddNest()
-            {
-                NestCount++;
-            }
-
-            internal void EscapeNest()
-            {
-                NestCount--;
-                if(NestCount < 0) throw new IndexOutOfRangeException("nest count");
-            }
-        }
-    }
-
-    internal class FunctionParser
+    
+    internal class FunctionParser : IExpressionParser
     {
         private readonly ILexer _lexer;
         private readonly IModuleFunctionMap _functionMap;
@@ -72,18 +26,39 @@ namespace Wasmic.Core
         private readonly LocalVariables _localVariables = new LocalVariables();
         private readonly ILoopContext _loopContext = new LoopContext();
 
+        private readonly IBinopExpressionParser _binopExpressionParser;
+
         private bool _used = false;
 
         public FunctionParser(
             ILexer lexer,
             IModuleFunctionMap functionMap,
             IFunctionDefinitionGenerator functionDefinitionGenerator,
-            IHeap heap)
+            IHeap heap): 
+            this(
+                lexer,
+                functionMap,
+                functionDefinitionGenerator,
+                heap,
+                new BinopExpressionParser()
+            )
+        {
+        }
+
+        internal FunctionParser(
+            ILexer lexer,
+            IModuleFunctionMap functionMap,
+            IFunctionDefinitionGenerator functionDefinitionGenerator,
+            IHeap heap,
+            
+            IBinopExpressionParser binopExpressionParser)
         {
             _lexer = lexer;
             _functionMap = functionMap;
             _functionDefinitionGenerator = functionDefinitionGenerator;
             _heap = heap;
+
+            _binopExpressionParser = binopExpressionParser;
         }
 
 
@@ -323,7 +298,7 @@ namespace Wasmic.Core
             return new SetLocalVariable(name, expression);
         }
 
-        private IWasmicSyntaxTreeExpression GetExpression()
+        public IWasmicSyntaxTreeExpression GetExpression()
         {
             IWasmicSyntaxTreeExpression lhs;
 
@@ -405,7 +380,7 @@ namespace Wasmic.Core
                 case TokenType.Minus:
                 case TokenType.Star:
                 case TokenType.Slash:
-                    (Operation operation, IWasmicSyntaxTreeExpression rhs) = GetBinopExpression();
+                    (Operation operation, IWasmicSyntaxTreeExpression rhs) = _binopExpressionParser.Parse(_lexer, this);
                     return new BinopExpresison(lhs, rhs, operation);
                 case TokenType.EqualComparer:
                 case TokenType.GrThanComparer:
@@ -478,30 +453,7 @@ namespace Wasmic.Core
 
             return new FunctionCall(name, callFunc.ReturnType?.Type, parameters);
         }
-
-        private (Operation operation, IWasmicSyntaxTreeExpression rhs) GetBinopExpression()
-        {
-            Operation operation;
-            switch(_lexer.Next.TokenType)
-            {
-                case TokenType.Plus:
-                    operation = Operation.Add;
-                    break;
-                case TokenType.Minus:
-                    operation = Operation.Subtract;
-                    break;
-                case TokenType.Star:
-                    operation = Operation.Multiply;
-                    break;
-                case TokenType.Slash:
-                    operation = Operation.Divide;
-                    break;
-                default:
-                    throw new WasmicCompilerException($"{_lexer.Next.TokenType} is not binop");
-            }
-            _lexer.Advance(); // eat operand
-            var rhs = GetExpression();
-            return (operation, rhs);
-        }
+        
     }
+    
 }
