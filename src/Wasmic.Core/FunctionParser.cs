@@ -114,12 +114,12 @@ namespace Wasmic.Core
         {
             _loopContext.AddNest();
 
-            _lexer.AssertNext(TokenType.L_Bracket);
+            _lexer.AssertNext(TokenType.L_Brace);
             _lexer.Advance();
 
             var expressions = new List<IWasmicSyntaxTree>();
 
-            while(_lexer.Next.TokenType != TokenType.R_Bracket)
+            while(_lexer.Next.TokenType != TokenType.R_Brace)
             {
                 var statement = GetStatement();
                 if(statement == null)
@@ -202,13 +202,40 @@ namespace Wasmic.Core
             {
                 case TokenType.Equal:
                     _lexer.Advance(); // eat =
-                    _localVariableMap[name] = null;
-                    tree = GetSetLocalVariable(name);
-                    if(type != null && tree.Type != type)
+
+                    if(_lexer.Next.TokenType == TokenType.New)
                     {
-                        throw new WasmicCompilerException($"types do not match: {type} / {tree.Type}");
+                        _lexer.Advance(); // eat new
+                        _lexer.AssertNext(TokenType.Identifier);
+                        var arrayType = _lexer.Next.Value;
+                        _lexer.Advance(); // eat type
+                        _lexer.AssertNext(TokenType.L_Bracket);
+                        _lexer.Advance(); // eat [
+
+                        _lexer.AssertNext(TokenType.Int32);
+                        var size = int.Parse(_lexer.Next.Value);
+                        _lexer.Advance(); // eat size
+
+                        _lexer.AssertNext(TokenType.R_Bracket);
+                        _lexer.Advance(); // eat ]
+
+                        if(arrayType != "i32") throw new NotImplementedException("arrays other than i32");
+                        var heapOffset = _heap.Allocate(size * 4);
+
+                        type = "i32[]";
+                        tree = GetSetLocalVariable(name, new Literal("i32", heapOffset.ToString()));
                     }
-                    type = tree.Type;
+                    else
+                    {
+                        _localVariableMap[name] = null;
+                        tree = GetSetLocalVariable(name);
+                        if(type != null && tree.Type != type)
+                        {
+                            throw new WasmicCompilerException($"types do not match: {type} / {tree.Type}");
+                        }
+                        type = tree.Type;
+                    }
+
                     break;
                 case TokenType.SemiColon:
                     if(type == null)
@@ -218,8 +245,8 @@ namespace Wasmic.Core
                     _lexer.Advance(); // eat ;
                     break;
             }
-
-            _localVariableMap[name] = type;
+            
+            _localVariableMap[name] = type ?? throw new NotImplementedException(nameof(type));
             return tree;
         }
 
@@ -287,6 +314,12 @@ namespace Wasmic.Core
             {
                 throw new WasmicCompilerException($"types do not match: {name} = {type}, expression = {expression.Type}");
             }
+
+            return GetSetLocalVariable(name, expression);
+        }
+
+        private SetLocalVariable GetSetLocalVariable(string name, IWasmicSyntaxTreeExpression expression)
+        {
             return new SetLocalVariable(name, expression);
         }
 
@@ -307,21 +340,39 @@ namespace Wasmic.Core
                         _lexer.Advance();
                     }
 
+                    int? arrayOffset = null;
+                    if(_lexer.Next.TokenType == TokenType.L_Bracket)
+                    {
+                        _lexer.Advance(); // eat [
+                        _lexer.AssertNext(TokenType.Int32);
+                        arrayOffset = int.Parse(_lexer.Next.Value) * 4;
+                        _lexer.Advance(); // eat offset
+                        _lexer.AssertNext(TokenType.R_Bracket);
+                        _lexer.Advance(); // eat ]
+                    }
+
                     switch(_lexer.Next.TokenType)
                     {
                         case TokenType.Equal:
                             _lexer.Advance(); // eat =
-                            lhs = GetSetLocalVariable(name);
+                            lhs = arrayOffset.HasValue 
+                                ? (IWasmicSyntaxTreeExpression)GetSetArrayLocalVariable(name, arrayOffset.Value)
+                                : GetSetLocalVariable(name);
                             break;
                         case TokenType.PlusEqual:
                             _lexer.Advance(); // eat +=
                             var valueExpression = GetExpression();
                             var getExpr = GetGetLocalVariable(name);
                             var expression = new BinopExpresison(valueExpression, getExpr, Operation.Add);
-                            lhs = new SetLocalVariable(name, expression);
+                            lhs = GetSetLocalVariable(name, expression);
+                            break;
+                        case TokenType.L_Paren:
+                            lhs = GetFunctionCall(name);
                             break;
                         default:
-                            lhs = GetLocalVariableOrFunctionCall(name);
+                            lhs = arrayOffset.HasValue 
+                                ? (IWasmicSyntaxTreeExpression)GetGetArrayLocalVariable(name, arrayOffset.Value)
+                                : GetGetLocalVariable(name);
                             break;
                     }
                     break;
@@ -367,14 +418,16 @@ namespace Wasmic.Core
             return lhs;
         }
 
-        private IWasmicSyntaxTreeExpression GetLocalVariableOrFunctionCall(string name)
+        private GetArrayLocalVariable GetGetArrayLocalVariable(string name, int offset)
         {
-            if(_lexer.Next.TokenType == TokenType.L_Paren)
-            {
-                return GetFunctionCall(name);
-            }
+            return new GetArrayLocalVariable(name, offset);
+        }
 
-            return GetGetLocalVariable(name);
+        private SetArrayLocalVariable GetSetArrayLocalVariable(string name, int offset)
+        {
+            var expression = GetExpression();
+            if(expression.Type != "i32") throw new NotImplementedException("arrays other than i32");
+            return new SetArrayLocalVariable(name, offset, expression);
         }
 
         private GetLocalVariable GetGetLocalVariable(string name)

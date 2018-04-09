@@ -117,7 +117,9 @@ namespace Wasmic.Core
         Memory,
         Data,
         Loop,
-        Break
+        Break,
+        GetArrayLocalVariable,
+        SetArrayLocalVariable
     }
 
     public interface IWasmicSyntaxTree
@@ -236,6 +238,38 @@ namespace Wasmic.Core
         public IWasmicSyntaxTreeExpression Expression { get; }
         public string Type => Expression.Type;
         public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.SetLocalVariable;
+    }
+
+    public class GetArrayLocalVariable : IWasmicSyntaxTreeExpression
+    {
+        public GetArrayLocalVariable(string name, int offset)
+        {
+            Name = name;
+            Offset = offset;
+        }
+
+        public string Name { get; }
+        public int Offset { get; }
+
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.GetArrayLocalVariable;
+        public string Type => "i32";
+    }
+
+    public class SetArrayLocalVariable : IWasmicSyntaxTreeExpression
+    {
+        public SetArrayLocalVariable(string name, int offset, IWasmicSyntaxTreeExpression expression)
+        {
+            Name = name;
+            Offset = offset;
+            Expression = expression;
+        }
+
+        public string Name { get; }
+        public int Offset { get; }
+        public IWasmicSyntaxTreeExpression Expression { get; }
+
+        public WasmicSyntaxTreeType WasmicSyntaxTreeType => WasmicSyntaxTreeType.SetArrayLocalVariable;
+        public string Type => "i32";
     }
 
     public enum Operation

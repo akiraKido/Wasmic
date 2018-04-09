@@ -28,10 +28,25 @@ namespace Wasmic.Core
         If,
         Else,
         Extern,
+        New,
 
         L_Paren,
         R_Paren,
+        /// <summary>
+        /// {
+        /// </summary>
+        L_Brace,
+        /// <summary>
+        /// }
+        /// </summary>
+        R_Brace,
+        /// <summary>
+        /// [
+        /// </summary>
         L_Bracket,
+        /// <summary>
+        /// ]
+        /// </summary>
         R_Bracket,
         Colon,
         Comma,
@@ -134,8 +149,10 @@ namespace Wasmic.Core
         {
             { '(', new Token(TokenType.L_Paren, "(") },
             { ')', new Token(TokenType.R_Paren, ")") },
-            { '{', new Token(TokenType.L_Bracket, "{") },
-            { '}', new Token(TokenType.R_Bracket, "}") },
+            { '{', new Token(TokenType.L_Brace, "{") },
+            { '}', new Token(TokenType.R_Brace, "}") },
+            { '[', new Token(TokenType.L_Bracket, "[") },
+            { ']', new Token(TokenType.R_Bracket, "]") },
             { ':', new Token(TokenType.Colon, ":") },
             { ',', new Token(TokenType.Comma, ",") },
             { ';', new Token(TokenType.SemiColon, ";") },
@@ -171,14 +188,9 @@ namespace Wasmic.Core
             { "extern", new Token(TokenType.Extern, "extern") },
             { "loop", new Token(TokenType.Loop, "loop") },
             { "break", new Token(TokenType.Break, "break") },
+            { "new", new Token(TokenType.New, "new") },
         };
-
-        private static readonly IReadOnlyDictionary<char, Dictionary<string, Token>> DoubleTokens
-            = new Dictionary<char, Dictionary<string, Token>>
-            {
-                { '+', new Dictionary<string, Token>{{ "+=", new Token(TokenType.PlusEqual, "+=") }} }
-            };
-
+        
         private readonly string _code;
         private int _offest;
         private Token _next;

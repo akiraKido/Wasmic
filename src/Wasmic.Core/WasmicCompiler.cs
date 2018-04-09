@@ -62,6 +62,10 @@ namespace Wasmic.Core
                     return GenerateWat((Loop)tree);
                 case WasmicSyntaxTreeType.Break:
                     return GenerateWat((Break)tree);
+                case WasmicSyntaxTreeType.GetArrayLocalVariable:
+                    return GenerateWat((GetArrayLocalVariable)tree);
+                case WasmicSyntaxTreeType.SetArrayLocalVariable:
+                    return GenerateWat((SetArrayLocalVariable)tree);
             }
             throw new NotImplementedException();
         }
@@ -113,7 +117,9 @@ namespace Wasmic.Core
                 }
                 else
                 {
-                    localVariables.Add($"(local ${variable.Key} {variable.Value})");
+                    var variableType = variable.Value;
+                    if(variableType.EndsWith("[]")) variableType = variableType.Substring(0, variableType.Length - 2);
+                    localVariables.Add($"(local ${variable.Key} {variableType})");
                 }
             }
 
@@ -319,5 +325,25 @@ namespace Wasmic.Core
             return $"br {brk.EscapeCount}";
         }
 
+        private static string GenerateWat(GetArrayLocalVariable getArrayLocalVariable)
+        {
+            var result = string.Empty;
+            result += $"get_local ${getArrayLocalVariable.Name} ";
+            result += $"i32.const {getArrayLocalVariable.Offset} ";
+            result += "i32.add ";
+            result += "i32.load";
+            return result;
+        }
+
+        private static string GenerateWat(SetArrayLocalVariable getArrayLocalVariable)
+        {
+            var result = string.Empty;
+            result += $"get_local ${getArrayLocalVariable.Name} ";
+            result += $"i32.const {getArrayLocalVariable.Offset} ";
+            result += "i32.add ";
+            result += $"{Compile(getArrayLocalVariable.Expression)} ";
+            result += "i32.store";
+            return result;
+        }
     }
 }

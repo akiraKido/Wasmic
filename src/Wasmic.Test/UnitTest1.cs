@@ -392,5 +392,37 @@ namespace Wasmic.Test
                             "set_local $x" +
                          "))", actual);
         }
+
+        [Fact]
+        public void NumberArray()
+        {
+            var code = "func hoge(): i32 {" +
+                       "    var x = new i32[1]" +
+                       "    x[0] = 1" +
+                       "    x[0]" +
+                       "}";
+            var tree = new WasmicSyntaxTree().ParseText(code);
+            var actual = WasmicCompiler.Compile(tree);
+
+            Assert.Equal("(module " +
+                            "(import \"js\" \"mem\" (memory 1)) " +
+                            "(func $hoge (result i32) (local $x i32) " +
+                                // x = 0 (offset in memory)
+                                "i32.const 0 " +
+                                "set_local $x " +
+                                // get offset x[0]
+                                "get_local $x " +
+                                "i32.const 0 " +
+                                "i32.add " +
+                                // store 1 in x[0]
+                                "i32.const 1 " +
+                                "i32.store " +
+                                // get x[0]
+                                "get_local $x " +
+                                "i32.const 0 " +
+                                "i32.add " +
+                                "i32.load" +
+                         "))", actual);
+        }
     }
 }

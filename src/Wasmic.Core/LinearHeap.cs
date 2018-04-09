@@ -8,6 +8,8 @@ namespace Wasmic.Core
         (int offset, string name) AllocateOrGetString(string s);
         bool IsAllocated { get; }
         IEnumerable<(string value, int offset)> GetAllocatedStrings();
+
+        int Allocate(int size);
     }
 
     internal class LinearHeap : IHeap
@@ -50,7 +52,7 @@ namespace Wasmic.Core
             return _lastName;
         }
 
-        private int Allocate(int length)
+        public int Allocate(int length)
         {
             if(IsAllocated == false)
             {
