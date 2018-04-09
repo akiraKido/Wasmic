@@ -69,12 +69,10 @@ namespace Wasmic.Core
         private readonly IFunctionDefinitionGenerator _functionDefinitionGenerator;
         private readonly IHeap _heap;
 
-        // key = name, value = type
-        private Dictionary<string, string> _localVariableMap;
-        private IEnumerable<Parameter> _parameters;
-
+        private readonly LocalVariables _localVariables = new LocalVariables();
         private readonly ILoopContext _loopContext = new LoopContext();
 
+        private bool _used = false;
 
         public FunctionParser(
             ILexer lexer,
@@ -91,7 +89,8 @@ namespace Wasmic.Core
 
         internal Function GetFunction()
         {
-            _localVariableMap = new Dictionary<string, string>();
+            if(_used) throw new WasmicCompilerException("function parser used twice");
+            _used = true;
 
             var functionDefinition = _functionDefinitionGenerator.Generate(_lexer);
 
@@ -100,13 +99,15 @@ namespace Wasmic.Core
                 throw new WasmicCompilerException($"function {functionDefinition.Name} is already declared");
             }
 
-            _parameters = functionDefinition.Parameters;
+            foreach(var parameter in functionDefinition.Parameters)
+            {
+                _localVariables.AddParameter(parameter.Name, parameter.Type);
+            }
 
             // body
             var body = GetBlock();
 
-            var function = new Function(functionDefinition, body, _localVariableMap);
-            _localVariableMap = null;
+            var function = new Function(functionDefinition, body, _localVariables.LocalVariableMap);
             return function;
         }
 
@@ -182,7 +183,7 @@ namespace Wasmic.Core
             _lexer.Advance(); // eat var
             _lexer.AssertNext(TokenType.Identifier);
             var name = _lexer.Next.Value;
-            if(_localVariableMap.ContainsKey(name) || _parameters.Any(v => v.Name == name))
+            if(_localVariables.Contains(name))
             {
                 throw new WasmicCompilerException($"local variable {name} is already declared");
             }
@@ -227,8 +228,7 @@ namespace Wasmic.Core
                     }
                     else
                     {
-                        _localVariableMap[name] = null;
-                        tree = GetSetLocalVariable(name);
+                        tree = GetSetLocalVariable(name, null, true);
                         if(type != null && tree.Type != type)
                         {
                             throw new WasmicCompilerException($"types do not match: {type} / {tree.Type}");
@@ -245,8 +245,9 @@ namespace Wasmic.Core
                     _lexer.Advance(); // eat ;
                     break;
             }
-            
-            _localVariableMap[name] = type ?? throw new NotImplementedException(nameof(type));
+
+            if(type == null) throw new NotImplementedException(nameof(type));
+            _localVariables.AddLocalVariable(name, type);
             return tree;
         }
 
@@ -301,18 +302,17 @@ namespace Wasmic.Core
 
         }
 
-        private SetLocalVariable GetSetLocalVariable(string name)
+        private SetLocalVariable GetSetLocalVariable(string name, string setType, bool isInitialSet)
         {
-            if(_localVariableMap.ContainsKey(name) == false)
+            if(isInitialSet == false && _localVariables.Contains(name) == false)
             {
                 throw new WasmicCompilerException($"variable {name} is not delcared");
             }
 
-            var type = _localVariableMap[name];
             var expression = GetExpression();
-            if(type != null && type != expression.Type)
+            if(setType != null && setType != expression.Type)
             {
-                throw new WasmicCompilerException($"types do not match: {name} = {type}, expression = {expression.Type}");
+                throw new WasmicCompilerException($"types do not match: {name} = {setType}, expression = {expression.Type}");
             }
 
             return GetSetLocalVariable(name, expression);
@@ -357,7 +357,7 @@ namespace Wasmic.Core
                             _lexer.Advance(); // eat =
                             lhs = arrayOffset.HasValue 
                                 ? (IWasmicSyntaxTreeExpression)GetSetArrayLocalVariable(name, arrayOffset.Value)
-                                : GetSetLocalVariable(name);
+                                : GetSetLocalVariable(name, null, false);
                             break;
                         case TokenType.PlusEqual:
                             _lexer.Advance(); // eat +=
@@ -432,17 +432,10 @@ namespace Wasmic.Core
 
         private GetLocalVariable GetGetLocalVariable(string name)
         {
-            if(_localVariableMap.ContainsKey(name))
-            {
-                var localVariableType = _localVariableMap[name];
-                return new GetLocalVariable(name, localVariableType);
-            }
-            else if(_parameters.Any(v => v.Name == name))
-            {
-                var parameter = _parameters.Single(p => p.Name == name);
-                return new GetLocalVariable(parameter.Name, parameter.Type);
-            }
-            throw new WasmicCompilerException($"no such variable: {name}");
+            if(!_localVariables.Contains(name)) throw new WasmicCompilerException($"no such variable: {name}");
+
+            var localVariableType = _localVariables[name].Type;
+            return new GetLocalVariable(name, localVariableType);
         }
 
         private FunctionCall GetFunctionCall(string name)
