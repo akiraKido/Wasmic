@@ -15,7 +15,7 @@ namespace Wasmic.Core
     {
         IWasmicSyntaxTreeExpression GetExpression();
     }
-    
+
     internal class FunctionParser : IExpressionParser
     {
         private readonly ILexer _lexer;
@@ -27,6 +27,8 @@ namespace Wasmic.Core
         private readonly ILoopContext _loopContext = new LoopContext();
 
         private readonly IBinopExpressionParser _binopExpressionParser;
+        private readonly IFunctionCallParser _functionCallParser;
+        private readonly IComparisonParser _comparisonParser;
 
         private bool _used = false;
 
@@ -34,13 +36,17 @@ namespace Wasmic.Core
             ILexer lexer,
             IModuleFunctionMap functionMap,
             IFunctionDefinitionGenerator functionDefinitionGenerator,
-            IHeap heap): 
-            this(
+            IHeap heap) :
+            this
+            (
                 lexer,
                 functionMap,
                 functionDefinitionGenerator,
                 heap,
-                new BinopExpressionParser()
+
+                new BinopExpressionParser(),
+                new FunctionCallParser(),
+                new ComparisonParser()
             )
         {
         }
@@ -50,8 +56,10 @@ namespace Wasmic.Core
             IModuleFunctionMap functionMap,
             IFunctionDefinitionGenerator functionDefinitionGenerator,
             IHeap heap,
-            
-            IBinopExpressionParser binopExpressionParser)
+
+            IBinopExpressionParser binopExpressionParser,
+            IFunctionCallParser functionCallParser,
+            IComparisonParser comparisonParser)
         {
             _lexer = lexer;
             _functionMap = functionMap;
@@ -59,6 +67,8 @@ namespace Wasmic.Core
             _heap = heap;
 
             _binopExpressionParser = binopExpressionParser;
+            _functionCallParser = functionCallParser;
+            _comparisonParser = comparisonParser;
         }
 
 
@@ -232,7 +242,7 @@ namespace Wasmic.Core
             _lexer.Advance(); // eat if
 
             var lhs = GetExpression();
-            var comparison = lhs as Comparison ?? GetComparison(lhs);
+            var comparison = lhs as Comparison ?? _comparisonParser.Parse(_lexer, this, lhs);
             var ifBlock = GetBlock();
 
             IEnumerable<IWasmicSyntaxTree> elseBlock = null;
@@ -255,28 +265,7 @@ namespace Wasmic.Core
 
             return new IfExpression(null, comparison, ifBlock, elseBlock);
         }
-
-        private Comparison GetComparison(IWasmicSyntaxTreeExpression lhs)
-        {
-            ComparisonOperator op;
-            switch(_lexer.Next.TokenType)
-            {
-                case TokenType.EqualComparer: op = ComparisonOperator.Equals; break;
-                case TokenType.GrThanComparer: op = ComparisonOperator.GreaterThan; break;
-                case TokenType.GrThanOrEqComparer: op = ComparisonOperator.GreaterThanOrEqual; break;
-                case TokenType.LsThanComparer: op = ComparisonOperator.LessThan; break;
-                case TokenType.LsThanOrEqComparer: op = ComparisonOperator.LessThanOrEqual; break;
-                default:
-                    throw new WasmicCompilerException(
-                        $"expected comparison operator, found {_lexer.Next.TokenType}"
-                    );
-            }
-            _lexer.Advance(); // eat comparison
-            var rhs = GetExpression();
-            return new Comparison(lhs, rhs, op);
-
-        }
-
+        
         private SetLocalVariable GetSetLocalVariable(string name, string setType, bool isInitialSet)
         {
             if(isInitialSet == false && _localVariables.Contains(name) == false)
@@ -330,7 +319,7 @@ namespace Wasmic.Core
                     {
                         case TokenType.Equal:
                             _lexer.Advance(); // eat =
-                            lhs = arrayOffset.HasValue 
+                            lhs = arrayOffset.HasValue
                                 ? (IWasmicSyntaxTreeExpression)GetSetArrayLocalVariable(name, arrayOffset.Value)
                                 : GetSetLocalVariable(name, null, false);
                             break;
@@ -342,10 +331,10 @@ namespace Wasmic.Core
                             lhs = GetSetLocalVariable(name, expression);
                             break;
                         case TokenType.L_Paren:
-                            lhs = GetFunctionCall(name);
+                            lhs = _functionCallParser.Parse(_lexer, _functionMap, this, name);
                             break;
                         default:
-                            lhs = arrayOffset.HasValue 
+                            lhs = arrayOffset.HasValue
                                 ? (IWasmicSyntaxTreeExpression)GetGetArrayLocalVariable(name, arrayOffset.Value)
                                 : GetGetLocalVariable(name);
                             break;
@@ -386,7 +375,7 @@ namespace Wasmic.Core
                 case TokenType.GrThanOrEqComparer:
                 case TokenType.LsThanComparer:
                 case TokenType.LsThanOrEqComparer:
-                    return GetComparison(lhs);
+                    return _comparisonParser.Parse(_lexer, this, lhs);
             }
 
             return lhs;
@@ -412,47 +401,34 @@ namespace Wasmic.Core
             return new GetLocalVariable(name, localVariableType);
         }
 
-        private FunctionCall GetFunctionCall(string name)
-        {
-            if(_functionMap.Contains(name) == false)
-            {
-                throw new WasmicCompilerException($"function {name} is not declared");
-
-            }
-
-            var callFunc = _functionMap.Get(name);
-
-            var parameters = new List<IWasmicSyntaxTreeExpression>();
-
-            _lexer.AssertNext(TokenType.L_Paren);
-            _lexer.Advance();
-            if(_lexer.Next.TokenType != TokenType.R_Paren)
-            {
-                do
-                {
-                    var parameterLoad = GetExpression();
-                    parameters.Add(parameterLoad);
-                } while(_lexer.Next.TokenType == TokenType.Comma);
-            }
-            _lexer.AssertNext(TokenType.R_Paren);
-            _lexer.Advance();
-
-            var expectedParameters = callFunc.Parameters;
-            if(expectedParameters.Count != parameters.Count)
-            {
-                throw new WasmicCompilerException($"unmatched argument count");
-            }
-            for(int i = 0; i < expectedParameters.Count; i++)
-            {
-                if(expectedParameters[i].Type != parameters[i].Type)
-                {
-                    throw new WasmicCompilerException($"expected argument to be {expectedParameters[i].Type} but found {parameters[i].Type}");
-                }
-            }
-
-            return new FunctionCall(name, callFunc.ReturnType?.Type, parameters);
-        }
-        
     }
-    
+
+    internal interface IComparisonParser
+    {
+        Comparison Parse(ILexer lexer, IExpressionParser expressionParser, IWasmicSyntaxTreeExpression lhs);
+    }
+
+    internal class ComparisonParser : IComparisonParser
+    {
+        public Comparison Parse(ILexer lexer, IExpressionParser expressionParser, IWasmicSyntaxTreeExpression lhs)
+        {
+            ComparisonOperator op;
+            switch(lexer.Next.TokenType)
+            {
+                case TokenType.EqualComparer: op = ComparisonOperator.Equals; break;
+                case TokenType.GrThanComparer: op = ComparisonOperator.GreaterThan; break;
+                case TokenType.GrThanOrEqComparer: op = ComparisonOperator.GreaterThanOrEqual; break;
+                case TokenType.LsThanComparer: op = ComparisonOperator.LessThan; break;
+                case TokenType.LsThanOrEqComparer: op = ComparisonOperator.LessThanOrEqual; break;
+                default:
+                    throw new WasmicCompilerException(
+                        $"expected comparison operator, found {lexer.Next.TokenType}"
+                    );
+            }
+            lexer.Advance(); // eat comparison
+            var rhs = expressionParser.GetExpression();
+            return new Comparison(lhs, rhs, op);
+        }
+    }
+
 }
